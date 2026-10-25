@@ -24,6 +24,7 @@ type Torrent struct {
 	Hash         string  `json:"hash"`
 	Name         string  `json:"name"`
 	AmountLeft   int64   `json:"amount_left"`
+	Size         int64   `json:"size"`     // bytes of the selected files: 0 when every file is skipped (e.g. an .exe excluded by qBittorrent)
 	Progress     float64 `json:"progress"` // 0..1; amount_left is 0 while metadata is missing
 	State        string  `json:"state"`
 	Category     string  `json:"category"`

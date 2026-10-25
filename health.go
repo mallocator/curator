@@ -19,6 +19,10 @@ import (
 // file reached the series folder, the database write didn't, e.g. "database is locked" on a busy disk). Sonarr then
 // reports "no files found are eligible" too, but the release is good: rescan the series/movie so the app finds the
 // file, and drop the queue entry without blocklisting or searching again.
+// Never for fakes: a single-file torrent whose file is an executable (Dark Matter S02E09 and Grey's Anatomy S23E02,
+// 2026-10-22/24: "... H264-FLUX.exe", "... H264-EZTV.exe" from Knaben) has nothing at its output path either, because
+// qBittorrent skips the excluded file and completes with 0 bytes. Treated as moved, they were removed without
+// blocklisting and grabbed again every sweep (12 and 21 times); now they are rejected and blocklisted.
 
 type queueItem struct {
 	ID             int    `json:"id"`
@@ -56,6 +60,11 @@ func (q queueItem) unusable() string {
 
 // junkExts are the files of fakes: a folder holding one of these isn't an emptied download.
 var junkExts = []string{".exe", ".lnk", ".scr", ".bat", ".cmd", ".msi", ".zip", ".rar", ".7z", ".iso"}
+
+// junkPath reports an output path that is itself a fake's file (a single-file torrent of an .exe and the like).
+func junkPath(path string) bool {
+	return slices.Contains(junkExts, strings.ToLower(filepath.Ext(path)))
+}
 
 // alreadyMoved reports a download whose content has been moved away: the path is gone, or it's a folder left with
 // extras only (no video, nothing a fake would hold). The parent must exist, so an unmounted share never qualifies.
@@ -187,7 +196,8 @@ func (a *App) CheckDownloads() {
 				log.Printf("Downloads: limit of %d removals reached, the rest waits for the next run", a.Config.SweepMaxRemove)
 				return
 			}
-			moved := strings.Contains(strings.ToLower(reason), "no files found are eligible") && alreadyMoved(q.OutputPath)
+			moved := strings.Contains(strings.ToLower(reason), "no files found are eligible") && t.Size > 0 &&
+				!junkPath(q.OutputPath) && alreadyMoved(q.OutputPath)
 			if a.Config.DryRun {
 				if moved {
 					log.Printf("[dry run] Downloads (%s): would rescan and remove %s (files already moved out of %s)", name, q.Title, q.OutputPath)
