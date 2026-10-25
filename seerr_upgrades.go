@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net/url"
 	"os"
 	"slices"
 	"strconv"
@@ -127,9 +126,8 @@ func (j *Jellyfin) MovieVersions(tmdbID int, pathPrefix string) ([]mediaVersion,
 			} `json:"MediaSources"`
 		} `json:"Items"`
 	}
-	// all movies (Jellyfin ignores AnyProviderIdEquals here; the library has ~150 films)
-	q := url.Values{"Recursive": {"true"}, "IncludeItemTypes": {"Movie"}, "Fields": {"ProviderIds,Path,MediaSources"}}
-	if err := j.get("/Items?"+q.Encode(), &items); err != nil {
+	// all movies, filtered here (Jellyfin ignores AnyProviderIdEquals)
+	if err := j.allMovies("ProviderIds,Path,MediaSources", &items); err != nil {
 		return nil, err
 	}
 	var out []mediaVersion

@@ -117,7 +117,9 @@ func newFakeUpgradeEnv(t *testing.T) (*fakeUpgradeEnv, *httptest.Server) {
 			write(env.releases)
 		case p == "/api/v3/release" && r.Method == "POST":
 			env.grabbed = append(env.grabbed, body["guid"].(string))
-		case p == "/Items":
+		case p == "/Users":
+			write([]map[string]any{{"Id": "kid", "Policy": map[string]any{"IsAdministrator": false}}, {"Id": "admin", "Policy": map[string]any{"IsAdministrator": true}}})
+		case p == "/Users/admin/Items":
 			write(map[string]any{"Items": []map[string]any{{"Path": "/volume1/Video/Movies/Face Off (1997).mkv",
 				"ProviderIds": map[string]string{"Tmdb": "754"}, "MediaSources": env.versions}}})
 		default:
