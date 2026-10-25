@@ -34,6 +34,9 @@ type App struct {
 	groups       *groupStats // measured MB/min per release group (imports.go)
 	groupsOnce   sync.Once
 
+	seerrUpgrades     *seerrUpgradeLog // better versions through Seerr issues (seerr_upgrades.go)
+	seerrUpgradesOnce sync.Once
+
 	mergeMu       sync.Mutex
 	pendingMerges map[int]time.Time // archived movies with another version: merge in Jellyfin once it has scanned them
 }

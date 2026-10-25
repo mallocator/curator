@@ -94,6 +94,16 @@ Simkl/Seerr list sync. A single Go binary with no dependencies. Named plex-clean
    files) is kept; the upgrade search passes over approved releases of groups whose median stays under
    `IMPORT_MIN_MB_PER_MIN` when the app approved another release too.
 
+11. **Better versions through Seerr** (every `SEERR_UPGRADE_INTERVAL`): a movie already in the library shows as
+   available in Seerr (and Moonfin etc.), so it can't be requested again. Reporting a **Video** issue on it (any text)
+   asks for a better version: curator puts the movie (back) into Radarr unmonitored with `SEERR_UPGRADE_PROFILE`, the
+   archive tag and the reporter's user tag (lifting the import exclusion of an archived film), searches, and grabs the
+   first release Radarr approves that beats the best existing version (Jellyfin's archive copies and Radarr's file): a
+   higher resolution, or the same at 1.5x the size. The archive step then copies it next to the old version (nothing in
+   the archive is replaced) and Jellyfin merges them. Each step is an issue comment; the issue is resolved when the new
+   version is in the archive. Without a better release it retries daily for `SEERR_UPGRADE_DAYS`, then gives up and
+   restores Radarr; closing the issue stops it too. Movies only.
+
 **The archive is never touched.** Every deletion (Sonarr episode files, files found by name, the torrent sweep,
 download health) first checks the path: it must be below `DELETE_ROOTS` (default `/downloads`) and outside
 `ARCHIVE_DIR`, `ANIME_ARCHIVE_DIR`, `MOVIE_ARCHIVE_DIR` and `PROTECTED_DIRS`. Archiving only copies into the archive. Anything else is
@@ -140,6 +150,10 @@ refused and logged.
 | `IMPORT_MIN_MB_PER_MIN` | `12` | Imports below are counted; groups staying below are passed over |
 | `STATS_INTERVAL` | `2m` | Refresh of the `/metrics` gauges; `0` disables |
 | `SEERR_RECONCILE_INTERVAL` | `24h` | Reset orphaned "processing" TV records in Seerr; `0` disables (needs `SEERR_URL`/`SEERR_API_KEY` and Sonarr) |
+| `SEERR_UPGRADE_INTERVAL` | `15m` | Better versions through Seerr Video issues on movies; `0` disables (needs Seerr and Radarr) |
+| `SEERR_UPGRADE_PROFILE` | `4K preferred` | Radarr quality profile for those searches |
+| `SEERR_UPGRADE_DAYS` | `14` | Give up after this many days without a better release |
+| `SEERR_UPGRADE_STATE_FILE` | `/data/seerr-upgrades.json` | State of the handled issues |
 | `WATCHED_POLL_INTERVAL` | `10m` | Poll Jellyfin/Plex watched marks; `0` disables |
 | `WATCHED_LOOKBACK` | `48h` | Older marks never count |
 | `WATCHED_MAX_AGE` | `4h` | A new mark older than this is treated as synced and ignored (must cover a long playback: Jellyfin dates a viewing from its start) |
