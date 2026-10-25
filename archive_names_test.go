@@ -149,7 +149,9 @@ func TestCollectionFilmsAndMergeVersions(t *testing.T) {
 	n := 3
 	jf := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.URL.Path == "/Items":
+		case r.URL.Path == "/Users":
+			json.NewEncoder(w).Encode([]map[string]any{{"Id": "kid", "Policy": map[string]any{"IsAdministrator": false}}, {"Id": "admin", "Policy": map[string]any{"IsAdministrator": true}}})
+		case r.URL.Path == "/Users/admin/Items":
 			var items []map[string]any
 			for i := 0; i < n; i++ {
 				items = append(items, map[string]any{"Id": string(rune('a' + i)), "Path": "/volume1/Video/Movies/Heat (1995).mkv", "ProviderIds": map[string]string{"Tmdb": "949"}})

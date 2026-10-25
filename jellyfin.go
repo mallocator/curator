@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -15,6 +16,9 @@ type Jellyfin struct {
 	BaseURL string
 	APIKey  string
 	Client  *http.Client
+
+	adminMu sync.Mutex
+	adminID string
 }
 
 func NewJellyfin(baseURL, apiKey string) *Jellyfin {
@@ -36,6 +40,39 @@ func (j *Jellyfin) get(path string, out any) error {
 		return fmt.Errorf("jellyfin GET %s: %s", path, resp.Status)
 	}
 	return json.NewDecoder(resp.Body).Decode(out)
+}
+
+// allMovies lists every movie in every library. It asks as an administrator: without a user, /Items returns only
+// some libraries (148 of 884 movies on nyx, the archive missing).
+func (j *Jellyfin) allMovies(fields string, out any) error {
+	j.adminMu.Lock()
+	id := j.adminID
+	j.adminMu.Unlock()
+	if id == "" {
+		var users []struct {
+			ID     string `json:"Id"`
+			Policy struct {
+				IsAdministrator bool `json:"IsAdministrator"`
+			} `json:"Policy"`
+		}
+		if err := j.get("/Users", &users); err != nil {
+			return err
+		}
+		for _, u := range users {
+			if u.Policy.IsAdministrator {
+				id = u.ID
+				break
+			}
+		}
+		if id == "" {
+			return fmt.Errorf("jellyfin: no administrator user to list movies as")
+		}
+		j.adminMu.Lock()
+		j.adminID = id
+		j.adminMu.Unlock()
+	}
+	q := url.Values{"Recursive": {"true"}, "IncludeItemTypes": {"Movie"}, "Fields": {fields}}
+	return j.get("/Users/"+id+"/Items?"+q.Encode(), out)
 }
 
 // FavoriteMovies returns the TMDB IDs of the movies the named users marked as favourite.
@@ -89,8 +126,7 @@ func (j *Jellyfin) MergeArchiveVersions(tmdbID int, pathPrefix string) (int, err
 			ProviderIds map[string]string `json:"ProviderIds"`
 		} `json:"Items"`
 	}
-	q := url.Values{"Recursive": {"true"}, "IncludeItemTypes": {"Movie"}, "Fields": {"ProviderIds,Path"}}
-	if err := j.get("/Items?"+q.Encode(), &items); err != nil {
+	if err := j.allMovies("ProviderIds,Path", &items); err != nil {
 		return 0, err
 	}
 	var ids []string
