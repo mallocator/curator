@@ -74,6 +74,8 @@ Simkl/Seerr list sync. A single Go binary with no dependencies. Named plex-clean
    A download that reports nothing importable but whose video is already gone from the downloads folder was moved by
    an import that failed halfway (e.g. Sonarr's `database is locked` on a busy disk): it is not blocklisted; the series
    or movie is rescanned so the app picks up the file, and the queue entry is dropped without searching again.
+   Not for fakes that only look like that: a torrent whose output path is an executable/archive, or that completed
+   with 0 bytes because qBittorrent skipped its only (excluded) file, is rejected and blocklisted (v2.15.1).
 8. **Seerr orphans** (daily, `SEERR_RECONCILE_INTERVAL`): Seerr TV records stuck in "processing" whose series is no
    longer in Sonarr (by TVDB and TMDB ID), with no request and nothing available, are reset (`DELETE /api/v1/media/<id>`;
    files untouched). Seerr's own scan skips records created from TMDB alone, which otherwise stay processing forever and

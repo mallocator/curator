@@ -130,23 +130,28 @@ func TestCheckDownloadsHalfFailedImport(t *testing.T) {
 	}
 	var torrents []Torrent
 	for _, h := range []string{"a1", "a2", "a3", "a4"} {
-		torrents = append(torrents, Torrent{Hash: h, State: "stoppedUP", Progress: 1, SavePath: dl})
+		torrents = append(torrents, Torrent{Hash: h, State: "stoppedUP", Progress: 1, SavePath: dl, Size: 1 << 30})
 	}
+	// fakes whose .exe qBittorrent skipped: nothing at the output path, 0 bytes (2026-10-22/24)
+	torrents = append(torrents, Torrent{Hash: "a5", State: "stoppedUP", Progress: 1, SavePath: dl, Size: 0})
+	torrents = append(torrents, Torrent{Hash: "a6", State: "stoppedUP", Progress: 1, SavePath: dl, Size: 1 << 30})
 	_, qsrv := newFakeQbt(t, torrents, nil)
 	fs, ssrv := newFakeQueue(t, []map[string]any{
-		item(1, "A1", "single file moved.mkv"), // gone
-		item(2, "A2", "extras only"),           // folder without the video
-		item(3, "A3", "fake"),                  // an .exe: a real fake
-		item(4, "A4", "still here.mkv"),        // video still there: not imported for another reason
+		item(1, "A1", "single file moved.mkv"),                        // gone
+		item(2, "A2", "extras only"),                                  // folder without the video
+		item(3, "A3", "fake"),                                         // an .exe: a real fake
+		item(4, "A4", "still here.mkv"),                               // video still there: not imported for another reason
+		item(5, "A5", "Dark Matter 2024 S02E09 1080p WEB H264-FLUX"),  // 0 bytes: every file skipped
+		item(6, "A6", "Greys Anatomy S23E02 1080p WEB H264-EZTV.exe"), // the output path is an .exe
 	})
 	a := newTestApp(t)
-	a.Config.SweepMaxRemove = 5
+	a.Config.SweepMaxRemove = 10
 	a.Qbt = NewQbittorrent(qsrv.URL, "", "")
 	a.Sonarr = NewSonarr(ssrv.URL, "k")
 	a.CheckDownloads()
 	sort.Strings(fs.removed)
 	sort.Strings(fs.rejected)
-	if strings.Join(fs.removed, ",") != "1,2" || strings.Join(fs.rejected, ",") != "3,4" {
+	if strings.Join(fs.removed, ",") != "1,2" || strings.Join(fs.rejected, ",") != "3,4,5,6" {
 		t.Errorf("removed %v rejected %v, want moved downloads removed and the rest rejected", fs.removed, fs.rejected)
 	}
 	if len(fs.commands) != 2 || fs.commands[0]["name"] != "RescanSeries" || fs.commands[0]["seriesId"] != float64(4) {
