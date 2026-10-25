@@ -58,16 +58,20 @@ type Config struct {
 	TVSubdir     string
 	MovieSubdir  string
 
-	SimklClientID  string
-	SimklTokenFile string
-	SimklInterval  time.Duration // 0 disables the Simkl sync
-	SimklRulesFile string        // movies the cinema/collection rules handled (each rule acts once per movie)
-	SeerrURL       string
-	SeerrAPIKey    string
-	SeerrUserID    int           // Seerr user the blocklist entries are attributed to
-	SeerrReconcile time.Duration // reset orphaned "processing" TV records (seerr_reconcile.go); 0 disables
-	PlexURL        string
-	PlexCollection string // Plex movie sections below this path are the collection (collection rule)
+	SimklClientID         string
+	SimklTokenFile        string
+	SimklInterval         time.Duration // 0 disables the Simkl sync
+	SimklRulesFile        string        // movies the cinema/collection rules handled (each rule acts once per movie)
+	SeerrURL              string
+	SeerrAPIKey           string
+	SeerrUserID           int           // Seerr user the blocklist entries are attributed to
+	SeerrReconcile        time.Duration // reset orphaned "processing" TV records (seerr_reconcile.go); 0 disables
+	SeerrUpgradeInterval  time.Duration // better versions through Seerr Video issues (seerr_upgrades.go); 0 disables
+	SeerrUpgradeProfile   string        // Radarr quality profile for those searches
+	SeerrUpgradeDays      int           // give up after this many days without a better release
+	SeerrUpgradeStateFile string
+	PlexURL               string
+	PlexCollection        string // Plex movie sections below this path are the collection (collection rule)
 
 	QbtURL         string
 	QbtUser        string
@@ -140,6 +144,9 @@ func main() {
 	}
 	if app.Seerr != nil && app.Sonarr != nil && config.SeerrReconcile > 0 {
 		go loop(config.SeerrReconcile, app.SeerrReconcile)
+	}
+	if app.Seerr != nil && app.Radarr != nil && config.SeerrUpgradeInterval > 0 {
+		go loop(config.SeerrUpgradeInterval, app.SeerrUpgrades)
 	}
 	if (app.Jellyfin != nil || app.Plex != nil) && config.WatchedPoll > 0 {
 		go loop(config.WatchedPoll, app.WatchedPoll)
@@ -224,16 +231,20 @@ func loadConfig() Config {
 		TVSubdir:     getEnv("TV_SUBDIR", "tv"),
 		MovieSubdir:  getEnv("MOVIE_SUBDIR", "movies"),
 
-		SimklClientID:  getEnv("SIMKL_CLIENT_ID", ""),
-		SimklTokenFile: getEnv("SIMKL_TOKEN_FILE", "/data/simkl.json"),
-		SimklInterval:  getDuration("SIMKL_INTERVAL", 6*time.Hour),
-		SimklRulesFile: getEnv("SIMKL_RULES_FILE", "/data/simkl-rules.json"),
-		SeerrURL:       strings.TrimRight(getEnv("SEERR_URL", ""), "/"),
-		SeerrAPIKey:    getEnv("SEERR_API_KEY", ""),
-		SeerrUserID:    getInt("SEERR_USER_ID", 1),
-		SeerrReconcile: getDuration("SEERR_RECONCILE_INTERVAL", 24*time.Hour),
-		PlexURL:        strings.TrimRight(getEnv("PLEX_URL", ""), "/"),
-		PlexCollection: getEnv("PLEX_COLLECTION_ROOT", "/volume1/Video"),
+		SimklClientID:         getEnv("SIMKL_CLIENT_ID", ""),
+		SimklTokenFile:        getEnv("SIMKL_TOKEN_FILE", "/data/simkl.json"),
+		SimklInterval:         getDuration("SIMKL_INTERVAL", 6*time.Hour),
+		SimklRulesFile:        getEnv("SIMKL_RULES_FILE", "/data/simkl-rules.json"),
+		SeerrURL:              strings.TrimRight(getEnv("SEERR_URL", ""), "/"),
+		SeerrAPIKey:           getEnv("SEERR_API_KEY", ""),
+		SeerrUserID:           getInt("SEERR_USER_ID", 1),
+		SeerrReconcile:        getDuration("SEERR_RECONCILE_INTERVAL", 24*time.Hour),
+		SeerrUpgradeInterval:  getDuration("SEERR_UPGRADE_INTERVAL", 15*time.Minute),
+		SeerrUpgradeProfile:   getEnv("SEERR_UPGRADE_PROFILE", "4K preferred"),
+		SeerrUpgradeDays:      getInt("SEERR_UPGRADE_DAYS", 14),
+		SeerrUpgradeStateFile: getEnv("SEERR_UPGRADE_STATE_FILE", "/data/seerr-upgrades.json"),
+		PlexURL:               strings.TrimRight(getEnv("PLEX_URL", ""), "/"),
+		PlexCollection:        getEnv("PLEX_COLLECTION_ROOT", "/volume1/Video"),
 
 		QbtURL:         strings.TrimRight(getEnv("QBT_URL", ""), "/"),
 		QbtUser:        getEnv("QBT_USER", ""),
