@@ -32,6 +32,12 @@ Simkl/Seerr list sync. A single Go binary with no dependencies. Named plex-clean
      archive moves it to `ARCHIVE_DIR/<show>/` keeping its name (minus a Sonarr quality suffix). These name rules also apply to a show Sonarr
      knows but has no file or tag for (e.g. added by an import list while an RSS rule downloads it).
    - Anything else is left alone.
+   - **Only the owner's viewing deletes** (`WATCHERS`): a file in a user's folder (`USER_FOLDERS`) is deleted only after
+     that user watched it, and the grace period counts from their viewing; someone else's viewing keeps it (logged as
+     `keeping … watched only by …`, metric `curator_actions_total{action="kept_not_owner"}`). `WATCHERS` maps the
+     accounts that report viewings to `USER_FOLDERS` keys: Jellyfin user names, Plex account titles (webhook) and
+     `owner` (the Plex poll). Archiving (keeps a copy), files outside every user folder and queue entries from before
+     v2.17 keep the old rule (any viewing counts), as does everything while `WATCHERS` is empty.
 4. **Per-user folders**: Seerr tags each request with the requester (`2-daniela`). With `USER_FOLDERS`
    (`2-daniela=/downloads/daniela,1-mallox=/downloads/ravi`; keys are Seerr's tag labels `<user id>-<name>`):
    - shows and movies carrying a user tag are moved through Sonarr/Radarr (`moveFiles=true`) into `<folder>/tv` or
@@ -128,6 +134,7 @@ refused and logged.
 | `JELLYFIN_URL`, `JELLYFIN_API_KEY`, `JELLYFIN_ARCHIVE_USERS` | | Jellyfin favourites of these users archive a movie like the tag |
 | `RADARR_URL`, `RADARR_API_KEY` | | Radarr for per-user movie folders |
 | `USER_FOLDERS` | | `2-daniela=/base,1-mallox=/base2` (Seerr tag labels; a plain name also routes but can't be created as a tag) |
+| `WATCHERS` | | `mallocator=1-mallox,owner=1-mallox,daniela=2-daniela`: viewing account → `USER_FOLDERS` key; only the folder's owner's viewing deletes (empty: anyone's) |
 | `TV_SUBDIR`, `MOVIE_SUBDIR` | `tv`, `movies` | Subfolders below each user's base |
 | `SIMKL_CLIENT_ID`, `SIMKL_TOKEN_FILE` | , `/data/simkl.json` | Simkl app and token (`access_token`, `refresh_token`, `expires_in`, `obtained_at`) |
 | `SIMKL_INTERVAL` | `6h` | `0` disables the Simkl sync |

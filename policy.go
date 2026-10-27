@@ -17,6 +17,9 @@ func logf(format string, args ...any) { log.Printf(format, args...) }
 func (a *App) ProcessDue() {
 	for _, it := range a.Queue.Due(a.now(), a.Config.GracePeriod) {
 		done, err := a.apply(it)
+		if errors.Is(err, errOwnerWait) {
+			continue // the owner watched it recently: due later, not a failure
+		}
 		if err != nil {
 			n := a.Queue.Failed(it)
 			log.Printf("%s: %v (attempt %d/%d)", it, err, n, maxAttempts)
@@ -106,6 +109,16 @@ func (a *App) apply(it PendingItem) (bool, error) {
 	file, err := a.Sonarr.EpisodeFile(ep.EpisodeFileID)
 	if err != nil {
 		return false, err
+	}
+	if action == "delete" {
+		if ok, wait, why := a.ownerCheck(it, file.Path); !ok {
+			if wait {
+				return false, errOwnerWait
+			}
+			log.Printf("%s: keeping %s: %s", it, file.Path, why)
+			metrics.Inc("curator_actions_total", "action", "kept_not_owner")
+			return true, nil
+		}
 	}
 
 	if action == "archive" {

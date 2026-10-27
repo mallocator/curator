@@ -55,6 +55,7 @@ type Config struct {
 	RadarrURL    string
 	RadarrAPIKey string
 	UserFolders  map[string]string // Seerr user name -> base folder (USER_FOLDERS)
+	Watchers     map[string]string // viewing account -> USER_FOLDERS key (WATCHERS, owners.go)
 	TVSubdir     string
 	MovieSubdir  string
 
@@ -228,6 +229,7 @@ func loadConfig() Config {
 		RadarrURL:    strings.TrimRight(getEnv("RADARR_URL", ""), "/"),
 		RadarrAPIKey: getEnv("RADARR_API_KEY", ""),
 		UserFolders:  parseMap(getEnv("USER_FOLDERS", "")),
+		Watchers:     parseMap(getEnv("WATCHERS", "")),
 		TVSubdir:     getEnv("TV_SUBDIR", "tv"),
 		MovieSubdir:  getEnv("MOVIE_SUBDIR", "movies"),
 

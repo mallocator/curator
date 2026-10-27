@@ -56,11 +56,15 @@ type WatchEvent struct {
 	Season  int
 	Episode int
 	Title   string // episode or movie title
+	User    string // account that watched: Jellyfin user, Plex account title, "owner" (Plex poll); "" if unknown
 }
 
 // PlexWebhookPayload holds the fields of a Plex webhook we use.
 type PlexWebhookPayload struct {
-	Event    string `json:"event"`
+	Event   string `json:"event"`
+	Account struct {
+		Title string `json:"title"`
+	} `json:"Account"`
 	Metadata struct {
 		Type             string `json:"type"`
 		Title            string `json:"title"`
@@ -79,6 +83,7 @@ type JellyfinWebhookPayload struct {
 	} `json:"MediaStatus"`
 	PlayedToCompletion bool   `json:"PlayedToCompletion"` // top level in the plugin's default template
 	NotificationType   string `json:"NotificationType"`
+	Username           string `json:"NotificationUsername"`
 	Title              string `json:"Name"`
 	SeriesName         string `json:"SeriesName"`
 	SeasonNumber       int    `json:"SeasonNumber"`
@@ -154,9 +159,11 @@ func (a *App) handlePlex(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case p.Metadata.Type == "episode":
 		a.Watched(WatchEvent{Source: "plex", Type: "episode", Series: p.Metadata.GrandparentTitle,
-			Season: p.Metadata.ParentIndex, Episode: p.Metadata.Index, Title: p.Metadata.Title})
+			Season: p.Metadata.ParentIndex, Episode: p.Metadata.Index, Title: p.Metadata.Title, User: p.Account.Title})
 	case p.Metadata.Type == "movie":
-		a.Watched(movieOrEpisode("plex", p.Metadata.Title))
+		e := movieOrEpisode("plex", p.Metadata.Title)
+		e.User = p.Account.Title
+		a.Watched(e)
 	default:
 		log.Printf("Ignoring Plex scrobble of %s (type %s)", p.Metadata.Title, p.Metadata.Type)
 	}
@@ -200,9 +207,11 @@ func (a *App) handleJellyfin(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case p.ItemType == "Episode" && p.SeriesName != "":
 		a.Watched(WatchEvent{Source: "jellyfin", Type: "episode", Series: p.SeriesName,
-			Season: p.SeasonNumber, Episode: p.EpisodeNumber, Title: p.Title})
+			Season: p.SeasonNumber, Episode: p.EpisodeNumber, Title: p.Title, User: p.Username})
 	case p.ItemType == "Movie" || p.ItemType == "Video" || p.ItemType == "Episode":
-		a.Watched(movieOrEpisode("jellyfin", p.Title))
+		e := movieOrEpisode("jellyfin", p.Title)
+		e.User = p.Username
+		a.Watched(e)
 	default:
 		log.Printf("Jellyfin: ignoring %s (item type %s)", p.Title, p.ItemType)
 	}
@@ -218,7 +227,8 @@ func (a *App) watchedAt(e WatchEvent, at time.Time) {
 	a.writeMarker(e)
 	if e.Type == "episode" {
 		if a.Queue.Add(e, at) {
-			log.Printf("Queued %s S%02dE%02d (watched in %s), due in %s", e.Series, e.Season, e.Episode, e.Source, a.Config.GracePeriod)
+			log.Printf("Queued %s S%02dE%02d (watched in %s by %s), due in %s", e.Series, e.Season, e.Episode, e.Source,
+				watcherName(Watcher{User: e.User}), a.Config.GracePeriod)
 		}
 	}
 }
