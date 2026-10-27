@@ -76,7 +76,7 @@ func (a *App) WatchedPoll() {
 	}
 	for _, w := range fresh {
 		a.watchedAt(WatchEvent{Source: w.Source + "-poll", Type: "episode", Series: w.Series, Season: w.Season,
-			Episode: w.Episode, Title: w.Title}, w.At)
+			Episode: w.Episode, Title: w.Title, User: w.User}, w.At)
 	}
 }
 

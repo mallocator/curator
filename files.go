@@ -151,6 +151,16 @@ func (a *App) applyToFiles(it PendingItem, action string, archiveDst func(string
 			log.Printf("%s: refusing to %s: %v", it, action, err)
 			continue
 		}
+		if action != "archive" {
+			if ok, wait, why := a.ownerCheck(it, f); !ok {
+				if wait {
+					return errOwnerWait
+				}
+				log.Printf("%s: keeping %s: %s", it, f, why)
+				metrics.Inc("curator_actions_total", "action", "kept_not_owner")
+				continue
+			}
+		}
 		if action == "archive" {
 			dst := archiveDst(f)
 			if a.Config.DryRun {

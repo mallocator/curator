@@ -21,6 +21,14 @@ type PendingItem struct {
 	Source    string    `json:"source"`
 	WatchedAt time.Time `json:"watched_at"`
 	Attempts  int       `json:"attempts,omitempty"`
+	Watchers  []Watcher `json:"watchers,omitempty"` // who watched it, first viewing per account (owners.go); empty before v2.17
+}
+
+// Watcher is one account's first viewing of a queued episode.
+type Watcher struct {
+	User   string    `json:"user"` // Jellyfin user, Plex account title, "owner" for the Plex poll; "" if not reported
+	Source string    `json:"source"`
+	At     time.Time `json:"at"`
 }
 
 func (p PendingItem) Key() string {
@@ -59,17 +67,39 @@ func LoadQueue(path string) (*Queue, error) {
 }
 
 // Add queues a watched episode. A second viewing of a queued episode keeps the first time,
-// so the grace period isn't extended by watching it again. Returns false if it was already queued.
+// so the grace period isn't extended by watching it again; a viewing by another account is added to its watchers
+// (the owner rule in owners.go needs it). Returns false if it was already queued.
 func (q *Queue) Add(e WatchEvent, at time.Time) bool {
-	it := PendingItem{Series: e.Series, Season: e.Season, Episode: e.Episode, Title: e.Title, Source: e.Source, WatchedAt: at}
+	w := Watcher{User: e.User, Source: e.Source, At: at}
+	it := PendingItem{Series: e.Series, Season: e.Season, Episode: e.Episode, Title: e.Title, Source: e.Source, WatchedAt: at,
+		Watchers: []Watcher{w}}
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	if _, ok := q.items[it.Key()]; ok {
+	if cur, ok := q.items[it.Key()]; ok {
+		if len(cur.Watchers) == 0 { // queued before v2.17: any viewing counts anyway
+			return false
+		}
+		for _, x := range cur.Watchers {
+			if normalizeTitle(x.User) == normalizeTitle(w.User) {
+				return false
+			}
+		}
+		cur.Watchers = append(cur.Watchers, w)
+		q.items[it.Key()] = cur
+		q.saveLocked()
+		logf("%s: also watched by %s (%s)", cur, watcherName(w), w.Source)
 		return false
 	}
 	q.items[it.Key()] = it
 	q.saveLocked()
 	return true
+}
+
+func watcherName(w Watcher) string {
+	if w.User == "" {
+		return "an unknown user"
+	}
+	return w.User
 }
 
 // Due returns the items whose grace period has passed.
