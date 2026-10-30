@@ -75,7 +75,10 @@ type PlexWebhookPayload struct {
 		GrandparentTitle string `json:"grandparentTitle"`
 		ParentIndex      int    `json:"parentIndex"`
 		Index            int    `json:"index"`
-		Guid             []struct {
+		// Plex sends "guid" (a string) next to "Guid"; without its own field encoding/json would put
+		// "guid" into Guid (keys match case-insensitively) and reject every payload.
+		PlexGUID string `json:"guid"`
+		Guid     []struct {
 			ID string `json:"id"` // "tmdb://603", "imdb://tt0133093"
 		} `json:"Guid"`
 	} `json:"Metadata"`

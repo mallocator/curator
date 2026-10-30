@@ -52,7 +52,8 @@ func jfEpisode(id, series string, s, e int, at time.Time) map[string]any {
 }
 
 func plexEpisode(rk, series string, s, e int, at time.Time) map[string]any {
-	return map[string]any{"ratingKey": rk, "title": "Ep", "grandparentTitle": series, "parentIndex": s, "index": e, "lastViewedAt": at.Unix()}
+	return map[string]any{"ratingKey": rk, "title": "Ep", "grandparentTitle": series, "parentIndex": s, "index": e, "lastViewedAt": at.Unix(),
+		"guid": "plex://episode/" + rk} // Plex sends "guid" (string) on every item
 }
 
 func pollApp(t *testing.T, jf, px *httptest.Server, now time.Time) *App {
