@@ -8,7 +8,8 @@
 //   - DELETE_TAG (default "delete-after-watch"): the episode file is deleted through Sonarr.
 //   - ARCHIVE_TAG (default "archive"): the file is copied to ARCHIVE_DIR/<show>/Season NN/, then deleted through Sonarr.
 //
-// Both unmonitor the episode so Sonarr doesn't fetch it again. Shows and movies requested through Seerr are moved into
+// Both unmonitor the episode so Sonarr doesn't fetch it again. Movies in the MOVIE_DELETE_USERS folders are deleted
+// through Radarr after their owner watched them, unless they are being archived (movie_cleanup.go). Shows and movies requested through Seerr are moved into
 // their requester's folder (USER_FOLDERS, see routing.go). With Simkl configured, Seerr's blocklist and Radarr follow
 // the owner's Simkl lists (simkl.go). Shows Sonarr doesn't manage can be listed in
 // ARCHIVE_SHOWS / DELETE_SHOWS instead; their files are found in SEARCH_DIRS by release name. Separately, a
@@ -48,6 +49,7 @@ type Config struct {
 	JellyfinURL          string
 	JellyfinAPIKey       string
 	JellyfinArchiveUsers []string // their Jellyfin favourites (movies) are archived like the Radarr tag
+	MovieDeleteUsers     []string // USER_FOLDERS keys whose watched movies are deleted after the grace period (movie_cleanup.go)
 	ArchiveShows         []string // shows not in Sonarr, handled by file name (see files.go)
 	DeleteShows          []string
 	SearchDirs           []string
@@ -159,9 +161,10 @@ func main() {
 		go loopRetry(config.SimklInterval, 10*time.Minute, app.SimklSync)
 	}
 
-	log.Printf("curator listening on :%d (grace %s, dry run %v, sonarr %v, radarr %v, sweep %v, user folders %d, simkl %v, upgrades %v)",
+	log.Printf("curator listening on :%d (grace %s, dry run %v, sonarr %v, radarr %v, sweep %v, user folders %d, simkl %v, upgrades %v, movie deletion %v)",
 		config.Port, config.GracePeriod, config.DryRun, app.Sonarr != nil, app.Radarr != nil,
-		app.Qbt != nil && config.SweepInterval > 0, len(config.UserFolders), app.Simkl != nil, config.UpgradeInterval)
+		app.Qbt != nil && config.SweepInterval > 0, len(config.UserFolders), app.Simkl != nil, config.UpgradeInterval,
+		config.MovieDeleteUsers)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", config.Port), app.Routes()))
 }
 
@@ -222,6 +225,7 @@ func loadConfig() Config {
 		JellyfinURL:          strings.TrimRight(getEnv("JELLYFIN_URL", ""), "/"),
 		JellyfinAPIKey:       getEnv("JELLYFIN_API_KEY", ""),
 		JellyfinArchiveUsers: splitList(getEnv("JELLYFIN_ARCHIVE_USERS", "")),
+		MovieDeleteUsers:     splitList(getEnv("MOVIE_DELETE_USERS", "")),
 		ArchiveShows:         splitList(getEnv("ARCHIVE_SHOWS", "")),
 		DeleteShows:          splitList(getEnv("DELETE_SHOWS", "")),
 		SearchDirs:           splitList(getEnv("SEARCH_DIRS", "/downloads/ravi,/downloads/daniela")),

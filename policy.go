@@ -17,8 +17,8 @@ func logf(format string, args ...any) { log.Printf(format, args...) }
 func (a *App) ProcessDue() {
 	for _, it := range a.Queue.Due(a.now(), a.Config.GracePeriod) {
 		done, err := a.apply(it)
-		if errors.Is(err, errOwnerWait) {
-			continue // the owner watched it recently: due later, not a failure
+		if errors.Is(err, errOwnerWait) || errors.Is(err, errPlaying) {
+			continue // the owner watched it recently, or it's playing: due later, not a failure
 		}
 		if err != nil {
 			n := a.Queue.Failed(it)
@@ -37,6 +37,9 @@ func (a *App) ProcessDue() {
 
 // apply handles one due episode. It returns done=true when the item can leave the queue.
 func (a *App) apply(it PendingItem) (bool, error) {
+	if it.Kind == "movie" {
+		return a.applyMovie(it)
+	}
 	var series *SonarrSeries
 	if a.Sonarr != nil {
 		var err error

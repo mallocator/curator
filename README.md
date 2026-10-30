@@ -17,7 +17,7 @@ Simkl/Seerr list sync. A single Go binary with no dependencies. Named plex-clean
    only records the current marks, and more than `WATCHED_BURST_MAX` new marks in one poll (a mass sync, e.g. by
    WatchState) are logged as held instead of queued (`curator_watched_poll_held_total`). Known marks are kept in
    `WATCHED_SEEN_FILE`.
-2. **Episodes wait a grace period** (default 24 h) in a persistent queue, so you can rewatch or catch up.
+2. **Episodes (and movies, see below) wait a grace period** (default 24 h) in a persistent queue, so you can rewatch or catch up.
    Watching the same episode again, or in the other server, doesn't restart the clock.
 3. **Then the show's rule applies:**
    - Shows managed by **Sonarr** use tags: `delete-after-watch` deletes the episode file through Sonarr;
@@ -32,6 +32,13 @@ Simkl/Seerr list sync. A single Go binary with no dependencies. Named plex-clean
      archive moves it to `ARCHIVE_DIR/<show>/` keeping its name (minus a Sonarr quality suffix). These name rules also apply to a show Sonarr
      knows but has no file or tag for (e.g. added by an import list while an RSS rule downloads it).
    - Anything else is left alone.
+   - **Movies** (with `MOVIE_DELETE_USERS`, v2.18): a watched Radarr movie in one of these users' folders is deleted
+     through Radarr after the grace period, files and all, with an import exclusion so nothing fetches it again (log
+     `watched, not archived: deleted …`, `curator_actions_total{action="movie_deleted"}`). Kept: movies tagged
+     `MOVIE_ARCHIVE_TAG` or ♥'d by `JELLYFIN_ARCHIVE_USERS` (they go to the archive, step 8), movies Radarr doesn't
+     manage (the archive), other users' folders, and a movie that is playing when it comes due. Movies are matched by
+     TMDB id (Jellyfin's `Provider_tmdb` with "send all properties", Plex guids), else by title and year. Queued movies
+     count as watched for the upgrade search. The watched poll includes movies then.
    - **Only the owner's viewing deletes** (`WATCHERS`): a file in a user's folder (`USER_FOLDERS`) is deleted only after
      that user watched it, and the grace period counts from their viewing; someone else's viewing keeps it (logged as
      `keeping … watched only by …`, metric `curator_actions_total{action="kept_not_owner"}`). `WATCHERS` maps the
@@ -123,7 +130,7 @@ refused and logged.
 | `OUTPUT_DIR` | | Marker files (one JSON per watched item); off by default, watched items are logged either way |
 | `STATE_FILE` | `/data/pending.json` | Grace-period queue |
 | `GRACE_PERIOD` | `24h` | Time between watching and acting |
-| `CHECK_INTERVAL` | `5m` | How often due episodes are processed |
+| `CHECK_INTERVAL` | `5m` | How often due episodes and movies are processed |
 | `DRY_RUN` | `false` | Log what would happen, change nothing |
 | `SONARR_URL`, `SONARR_API_KEY` | | Enables the Sonarr rules |
 | `DELETE_TAG`, `ARCHIVE_TAG` | `delete-after-watch`, `archive` | Sonarr tag labels |
@@ -132,6 +139,7 @@ refused and logged.
 | `MOVIE_ARCHIVE_DIR`, `MOVIE_ARCHIVE_TAG` | , `archive` | Where Radarr movies tagged for the archive go; empty disables |
 | `MOVIE_ARCHIVE_HOST_PATH` | `/volume1/Video/Movies` | The movie archive as Jellyfin sees it (version merging) |
 | `JELLYFIN_URL`, `JELLYFIN_API_KEY`, `JELLYFIN_ARCHIVE_USERS` | | Jellyfin favourites of these users archive a movie like the tag |
+| `MOVIE_DELETE_USERS` | | `USER_FOLDERS` keys whose watched movies are deleted after the grace period unless archived; empty disables. Needs `WATCHERS` |
 | `RADARR_URL`, `RADARR_API_KEY` | | Radarr for per-user movie folders |
 | `USER_FOLDERS` | | `2-daniela=/base,1-mallox=/base2` (Seerr tag labels; a plain name also routes but can't be created as a tag) |
 | `WATCHERS` | | `mallocator=1-mallox,owner=1-mallox,daniela=2-daniela`: viewing account → `USER_FOLDERS` key; only the folder's owner's viewing deletes (empty: anyone's) |

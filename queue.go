@@ -12,12 +12,15 @@ import (
 	"time"
 )
 
-// PendingItem is a watched episode waiting for its grace period to pass.
+// PendingItem is a watched episode or movie waiting for its grace period to pass.
 type PendingItem struct {
-	Series    string    `json:"series"`
-	Season    int       `json:"season"`
-	Episode   int       `json:"episode"`
-	Title     string    `json:"title,omitempty"`
+	Kind      string    `json:"kind,omitempty"` // "movie"; empty for episodes (the only kind before v2.18)
+	Series    string    `json:"series,omitempty"`
+	Season    int       `json:"season,omitempty"`
+	Episode   int       `json:"episode,omitempty"`
+	Title     string    `json:"title,omitempty"`   // episode or movie title
+	Year      int       `json:"year,omitempty"`    // movies
+	TmdbID    int       `json:"tmdb_id,omitempty"` // movies, when the server reported it
 	Source    string    `json:"source"`
 	WatchedAt time.Time `json:"watched_at"`
 	Attempts  int       `json:"attempts,omitempty"`
@@ -32,10 +35,22 @@ type Watcher struct {
 }
 
 func (p PendingItem) Key() string {
+	if p.Kind == "movie" {
+		if p.TmdbID != 0 {
+			return fmt.Sprintf("movie|tmdb|%d", p.TmdbID)
+		}
+		return fmt.Sprintf("movie|%s|%d", normalizeTitle(p.Title), p.Year)
+	}
 	return fmt.Sprintf("%s|%d|%d", normalizeTitle(p.Series), p.Season, p.Episode)
 }
 
 func (p PendingItem) String() string {
+	if p.Kind == "movie" {
+		if p.Year != 0 {
+			return fmt.Sprintf("%s (%d)", p.Title, p.Year)
+		}
+		return p.Title
+	}
 	return fmt.Sprintf("%s S%02dE%02d", p.Series, p.Season, p.Episode)
 }
 
@@ -73,6 +88,10 @@ func (q *Queue) Add(e WatchEvent, at time.Time) bool {
 	w := Watcher{User: e.User, Source: e.Source, At: at}
 	it := PendingItem{Series: e.Series, Season: e.Season, Episode: e.Episode, Title: e.Title, Source: e.Source, WatchedAt: at,
 		Watchers: []Watcher{w}}
+	if e.Type == "movie" {
+		it = PendingItem{Kind: "movie", Title: e.Title, Year: e.Year, TmdbID: e.TmdbID, Source: e.Source, WatchedAt: at,
+			Watchers: []Watcher{w}}
+	}
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	if cur, ok := q.items[it.Key()]; ok {
@@ -135,6 +154,22 @@ func (q *Queue) Failed(it PendingItem) int {
 	q.items[it.Key()] = cur
 	q.saveLocked()
 	return cur.Attempts
+}
+
+// MovieIDs returns the TMDB ids of the queued movies (watched, waiting to be deleted).
+func (q *Queue) MovieIDs() map[int]bool {
+	if q == nil {
+		return nil
+	}
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	ids := map[int]bool{}
+	for _, it := range q.items {
+		if it.Kind == "movie" && it.TmdbID != 0 {
+			ids[it.TmdbID] = true
+		}
+	}
+	return ids
 }
 
 func (q *Queue) Items() []PendingItem {
