@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -22,9 +23,10 @@ import (
 // or days later, and has copied wrong marks) and is ignored; and a poll finding more than WATCHED_BURST_MAX new marks
 // (a mass sync or a "mark season watched") queues none of them, so a faulty sync can't trigger mass deletion.
 // MaxAge must cover a long playback, because Jellyfin dates a viewing from its start. Deletion rules are unchanged:
-// Sonarr tag, then the grace period.
+// Sonarr tag, then the grace period. With MOVIE_DELETE_USERS movies are polled too (movie_cleanup.go).
 func (a *App) WatchedPoll() {
 	since := a.now().Add(-a.Config.WatchedLookback)
+	movies := len(a.Config.MovieDeleteUsers) > 0
 	var found []polledWatch
 	if a.Jellyfin != nil {
 		w, err := a.Jellyfin.PlayedEpisodes(since)
@@ -32,6 +34,13 @@ func (a *App) WatchedPoll() {
 			log.Printf("Watched poll: %v", err)
 		}
 		found = append(found, w...)
+		if movies {
+			w, err := a.Jellyfin.PlayedMoviesSince(since)
+			if err != nil {
+				log.Printf("Watched poll: %v", err)
+			}
+			found = append(found, w...)
+		}
 	}
 	if a.Plex != nil {
 		w, err := a.Plex.WatchedEpisodes(since)
@@ -39,6 +48,13 @@ func (a *App) WatchedPoll() {
 			log.Printf("Watched poll: %v", err)
 		}
 		found = append(found, w...)
+		if movies {
+			w, err := a.Plex.WatchedMovies(since)
+			if err != nil {
+				log.Printf("Watched poll: %v", err)
+			}
+			found = append(found, w...)
+		}
 	}
 	seen := a.seenWatched()
 	baseline := seen.Empty()
@@ -75,20 +91,28 @@ func (a *App) WatchedPoll() {
 		return
 	}
 	for _, w := range fresh {
+		if w.Movie {
+			a.watchedAt(WatchEvent{Source: w.Source + "-poll", Type: "movie", Title: w.Title, Year: w.Year,
+				TmdbID: w.TmdbID, User: w.User}, w.At)
+			continue
+		}
 		a.watchedAt(WatchEvent{Source: w.Source + "-poll", Type: "episode", Series: w.Series, Season: w.Season,
 			Episode: w.Episode, Title: w.Title, User: w.User}, w.At)
 	}
 }
 
-// polledWatch is an episode a server reports as watched.
+// polledWatch is an episode or movie a server reports as watched.
 type polledWatch struct {
 	Source  string // "jellyfin" or "plex"
 	User    string
 	ItemID  string
+	Movie   bool
 	Series  string
 	Season  int
 	Episode int
 	Title   string
+	Year    int       // movies
+	TmdbID  int       // movies
 	At      time.Time // when it was played or marked watched
 }
 
@@ -98,6 +122,9 @@ func (w polledWatch) key() string {
 }
 
 func (w polledWatch) String() string {
+	if w.Movie {
+		return fmt.Sprintf("%s (%d) (%s %s, %s)", w.Title, w.Year, w.Source, w.User, w.At.Format("2006-01-02 15:04"))
+	}
 	return fmt.Sprintf("%s S%02dE%02d (%s %s, %s)", w.Series, w.Season, w.Episode, w.Source, w.User, w.At.Format("2006-01-02 15:04"))
 }
 
@@ -147,6 +174,106 @@ func (j *Jellyfin) PlayedEpisodes(since time.Time) ([]polledWatch, error) {
 			if older || len(page.Items) < 100 {
 				break
 			}
+		}
+	}
+	return out, nil
+}
+
+// PlayedMoviesSince returns the movies each Jellyfin user marked played since the given time.
+func (j *Jellyfin) PlayedMoviesSince(since time.Time) ([]polledWatch, error) {
+	var users []struct {
+		ID   string `json:"Id"`
+		Name string `json:"Name"`
+	}
+	if err := j.get("/Users", &users); err != nil {
+		return nil, err
+	}
+	var out []polledWatch
+	for _, u := range users {
+		var page struct {
+			Items []struct {
+				ID          string            `json:"Id"`
+				Name        string            `json:"Name"`
+				Year        int               `json:"ProductionYear"`
+				ProviderIds map[string]string `json:"ProviderIds"`
+				UserData    struct {
+					LastPlayedDate string `json:"LastPlayedDate"`
+				} `json:"UserData"`
+			} `json:"Items"`
+		}
+		q := url.Values{"Recursive": {"true"}, "IncludeItemTypes": {"Movie"}, "IsPlayed": {"true"},
+			"SortBy": {"DatePlayed"}, "SortOrder": {"Descending"}, "EnableUserData": {"true"}, "Fields": {"ProviderIds"},
+			"Limit": {"100"}}
+		if err := j.get("/Users/"+u.ID+"/Items?"+q.Encode(), &page); err != nil {
+			return out, err
+		}
+		for _, it := range page.Items {
+			at, err := time.Parse(time.RFC3339Nano, it.UserData.LastPlayedDate)
+			if err != nil {
+				continue
+			}
+			if at.Before(since) {
+				break
+			}
+			tmdb := 0
+			for k, v := range it.ProviderIds {
+				if strings.EqualFold(k, "tmdb") {
+					tmdb, _ = strconv.Atoi(v)
+				}
+			}
+			out = append(out, polledWatch{Source: "jellyfin", User: u.Name, ItemID: it.ID, Movie: true, Title: it.Name,
+				Year: it.Year, TmdbID: tmdb, At: at})
+		}
+	}
+	return out, nil
+}
+
+// WatchedMovies returns the movies the Plex owner account watched since the given time.
+func (p *Plex) WatchedMovies(since time.Time) ([]polledWatch, error) {
+	var sections struct {
+		MediaContainer struct {
+			Directory []struct {
+				Key  string `json:"key"`
+				Type string `json:"type"`
+			} `json:"Directory"`
+		} `json:"MediaContainer"`
+	}
+	if err := p.get("/library/sections", &sections); err != nil {
+		return nil, err
+	}
+	var out []polledWatch
+	for _, d := range sections.MediaContainer.Directory {
+		if d.Type != "movie" {
+			continue
+		}
+		var items struct {
+			MediaContainer struct {
+				Metadata []struct {
+					RatingKey  string `json:"ratingKey"`
+					Type       string `json:"type"`
+					Title      string `json:"title"`
+					Year       int    `json:"year"`
+					LastViewed int64  `json:"lastViewedAt"`
+					Guid       []struct {
+						ID string `json:"id"`
+					} `json:"Guid"`
+				} `json:"Metadata"`
+			} `json:"MediaContainer"`
+		}
+		path := fmt.Sprintf("/library/sections/%s/all?type=1&includeGuids=1&sort=lastViewedAt:desc&lastViewedAt%%3E%%3E=%d", d.Key, since.Unix())
+		if err := p.get(path, &items); err != nil {
+			return out, err
+		}
+		for _, m := range items.MediaContainer.Metadata {
+			if m.LastViewed == 0 || m.Type != "movie" {
+				continue
+			}
+			var guids []string
+			for _, g := range m.Guid {
+				guids = append(guids, g.ID)
+			}
+			out = append(out, polledWatch{Source: "plex", User: "owner", ItemID: m.RatingKey, Movie: true, Title: m.Title,
+				Year: m.Year, TmdbID: plexTmdbID(guids), At: time.Unix(m.LastViewed, 0)})
 		}
 	}
 	return out, nil

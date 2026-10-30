@@ -461,11 +461,15 @@ func (a *App) radarrUpgradeItems(now time.Time) ([]upgradeItem, error) {
 	if err := a.Radarr.do("GET", "/api/v3/movie", nil, &movies); err != nil {
 		return nil, err
 	}
-	var watched map[int]bool
+	watched := map[int]bool{}
 	if a.Jellyfin != nil {
 		if watched, err = a.Jellyfin.PlayedMovies(); err != nil {
 			log.Printf("Upgrades (Radarr): %v", err) // without it, watched movies may be upgraded too
+			watched = map[int]bool{}
 		}
+	}
+	for id := range a.Queue.MovieIDs() { // watched and waiting to be deleted
+		watched[id] = true
 	}
 	var items []upgradeItem
 	for _, m := range movies {

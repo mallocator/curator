@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -56,6 +57,8 @@ type WatchEvent struct {
 	Season  int
 	Episode int
 	Title   string // episode or movie title
+	Year    int    // movies
+	TmdbID  int    // movies, when the server reports it
 	User    string // account that watched: Jellyfin user, Plex account title, "owner" (Plex poll); "" if unknown
 }
 
@@ -68,10 +71,26 @@ type PlexWebhookPayload struct {
 	Metadata struct {
 		Type             string `json:"type"`
 		Title            string `json:"title"`
+		Year             int    `json:"year"`
 		GrandparentTitle string `json:"grandparentTitle"`
 		ParentIndex      int    `json:"parentIndex"`
 		Index            int    `json:"index"`
+		Guid             []struct {
+			ID string `json:"id"` // "tmdb://603", "imdb://tt0133093"
+		} `json:"Guid"`
 	} `json:"Metadata"`
+}
+
+// plexTmdbID returns the TMDB id among Plex guids ("tmdb://603"), or 0.
+func plexTmdbID(guids []string) int {
+	for _, g := range guids {
+		if v, ok := strings.CutPrefix(g, "tmdb://"); ok {
+			if id, err := strconv.Atoi(v); err == nil {
+				return id
+			}
+		}
+	}
+	return 0
 }
 
 // JellyfinWebhookPayload holds the fields of the Jellyfin Webhook plugin's default template we use.
@@ -88,6 +107,8 @@ type JellyfinWebhookPayload struct {
 	SeriesName         string `json:"SeriesName"`
 	SeasonNumber       int    `json:"SeasonNumber"`
 	EpisodeNumber      int    `json:"EpisodeNumber"`
+	Year               int    `json:"Year"`
+	ProviderTmdb       string `json:"Provider_tmdb"` // with "send all properties"
 }
 
 // MarkerData is the marker file format (kept compatible with the Tautulli-based version).
@@ -163,6 +184,13 @@ func (a *App) handlePlex(w http.ResponseWriter, r *http.Request) {
 	case p.Metadata.Type == "movie":
 		e := movieOrEpisode("plex", p.Metadata.Title)
 		e.User = p.Account.Title
+		if e.Type == "movie" {
+			var guids []string
+			for _, g := range p.Metadata.Guid {
+				guids = append(guids, g.ID)
+			}
+			e.Year, e.TmdbID = p.Metadata.Year, plexTmdbID(guids)
+		}
 		a.Watched(e)
 	default:
 		log.Printf("Ignoring Plex scrobble of %s (type %s)", p.Metadata.Title, p.Metadata.Type)
@@ -211,6 +239,10 @@ func (a *App) handleJellyfin(w http.ResponseWriter, r *http.Request) {
 	case p.ItemType == "Movie" || p.ItemType == "Video" || p.ItemType == "Episode":
 		e := movieOrEpisode("jellyfin", p.Title)
 		e.User = p.Username
+		if e.Type == "movie" {
+			e.Year = p.Year
+			e.TmdbID, _ = strconv.Atoi(strings.TrimSpace(p.ProviderTmdb))
+		}
 		a.Watched(e)
 	default:
 		log.Printf("Jellyfin: ignoring %s (item type %s)", p.Title, p.ItemType)
@@ -218,7 +250,8 @@ func (a *App) handleJellyfin(w http.ResponseWriter, r *http.Request) {
 	okResponse(w)
 }
 
-// Watched records a finished viewing: marker file, and episodes go into the grace-period queue.
+// Watched records a finished viewing: marker file, and episodes (and movies, with MOVIE_DELETE_USERS) go into the
+// grace-period queue.
 func (a *App) Watched(e WatchEvent) { a.watchedAt(e, a.now()) }
 
 // watchedAt is Watched for a viewing at a known time (the poll): the grace period counts from then.
@@ -229,6 +262,13 @@ func (a *App) watchedAt(e WatchEvent, at time.Time) {
 		if a.Queue.Add(e, at) {
 			log.Printf("Queued %s S%02dE%02d (watched in %s by %s), due in %s", e.Series, e.Season, e.Episode, e.Source,
 				watcherName(Watcher{User: e.User}), a.Config.GracePeriod)
+		}
+	}
+	if e.Type == "movie" && len(a.Config.MovieDeleteUsers) > 0 && e.Title != "" {
+		if a.Queue.Add(e, at) {
+			it := PendingItem{Kind: "movie", Title: e.Title, Year: e.Year}
+			log.Printf("Queued movie %s (watched in %s by %s), due in %s", it, e.Source, watcherName(Watcher{User: e.User}),
+				a.Config.GracePeriod)
 		}
 	}
 }
