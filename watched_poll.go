@@ -254,6 +254,7 @@ func (p *Plex) WatchedMovies(since time.Time) ([]polledWatch, error) {
 					Title      string `json:"title"`
 					Year       int    `json:"year"`
 					LastViewed int64  `json:"lastViewedAt"`
+					PlexGUID   string `json:"guid"` // keeps "guid" (a string) out of Guid, see PlexWebhookPayload
 					Guid       []struct {
 						ID string `json:"id"`
 					} `json:"Guid"`

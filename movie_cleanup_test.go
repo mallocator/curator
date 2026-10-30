@@ -159,7 +159,7 @@ func TestMovieWebhooksCarryTmdb(t *testing.T) {
 		`"Provider_tmdb":"1377237","PlayedToCompletion":true,"NotificationUsername":"mallox"}`))
 	rec = httptest.NewRecorder()
 	a.handlePlex(rec, plexRequest(t, `{"event":"media.scrobble","Account":{"title":"mallocator"},"Metadata":{"type":"movie",`+
-		`"title":"Masterplan","year":2026,"Guid":[{"id":"imdb://tt1"},{"id":"tmdb://444"}]}}`))
+		`"title":"Masterplan","year":2026,"guid":"plex://movie/5d776","Guid":[{"id":"imdb://tt1"},{"id":"tmdb://444"}]}}`))
 	var got []string
 	for _, it := range a.Queue.Items() {
 		got = append(got, fmt.Sprintf("%s tmdb %d by %s", it, it.TmdbID, it.Watchers[0].User))
@@ -210,5 +210,26 @@ func TestWatchedPollQueuesMovies(t *testing.T) {
 	items := a.Queue.Items()
 	if len(items) != 1 || items[0].Kind != "movie" || items[0].TmdbID != 1377237 || items[0].Source != "jellyfin-poll" {
 		t.Fatalf("queue %+v", items)
+	}
+}
+
+// Plex items carry "guid" (a string) next to "Guid"; v2.18.0 failed on that, so every poll with a watched movie
+// (and every Plex webhook) was rejected.
+func TestPlexWatchedMoviesWithGuidString(t *testing.T) {
+	now := time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC)
+	px := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/library/sections" {
+			json.NewEncoder(w).Encode(map[string]any{"MediaContainer": map[string]any{"Directory": []map[string]string{{"key": "1", "type": "movie"}}}})
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]any{"MediaContainer": map[string]any{"Metadata": []map[string]any{
+			{"ratingKey": "7", "type": "movie", "title": "Genius", "year": 2016, "lastViewedAt": now.Add(-time.Hour).Unix(),
+				"guid": "plex://movie/5d776", "Guid": []map[string]string{{"id": "imdb://tt1"}, {"id": "tmdb://339397"}}},
+		}}})
+	}))
+	defer px.Close()
+	got, err := NewPlex(px.URL, "/volume1/Video").WatchedMovies(now.Add(-48 * time.Hour))
+	if err != nil || len(got) != 1 || got[0].TmdbID != 339397 || got[0].Title != "Genius" {
+		t.Fatalf("got %+v, %v", got, err)
 	}
 }

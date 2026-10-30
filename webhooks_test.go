@@ -44,7 +44,7 @@ func plexRequest(t *testing.T, payload string) *http.Request {
 
 const plexScrobble = `{"event":"media.scrobble","Account":{"title":"mallox"},
  "Metadata":{"type":"episode","title":"Treehouse of Horror","grandparentTitle":"The Simpsons","parentIndex":38,"index":2,
- "Guid":[{"id":"tvdb://123"}]}}`
+ "guid":"plex://episode/5d9c0","Guid":[{"id":"tvdb://123"}]}}`
 
 func TestPlexScrobbleQueuesEpisodeAndWritesMarker(t *testing.T) {
 	a := newTestApp(t)
