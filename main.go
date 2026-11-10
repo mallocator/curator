@@ -19,6 +19,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -170,8 +171,14 @@ func main() {
 
 // healthcheck asks the running server's /healthz; 0 = healthy.
 func healthcheck(port int) int {
-	c := &http.Client{Timeout: 10 * time.Second}
-	resp, err := c.Get(fmt.Sprintf("http://127.0.0.1:%d/healthz", port))
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://127.0.0.1:%d/healthz", port), nil)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1

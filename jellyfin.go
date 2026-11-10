@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -26,7 +27,7 @@ func NewJellyfin(baseURL, apiKey string) *Jellyfin {
 }
 
 func (j *Jellyfin) get(path string, out any) error {
-	req, err := http.NewRequest("GET", j.BaseURL+path, nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", j.BaseURL+path, nil)
 	if err != nil {
 		return err
 	}
@@ -146,7 +147,7 @@ func (j *Jellyfin) MergeArchiveVersions(tmdbID int, pathPrefix string) (int, err
 	if len(ids) > 6 {
 		return 0, fmt.Errorf("%d items for tmdb %d, not merging", len(ids), tmdbID)
 	}
-	req, err := http.NewRequest("POST", j.BaseURL+"/Videos/MergeVersions?ids="+strings.Join(ids, ","), nil)
+	req, err := http.NewRequestWithContext(context.Background(), "POST", j.BaseURL+"/Videos/MergeVersions?ids="+strings.Join(ids, ","), nil)
 	if err != nil {
 		return 0, err
 	}

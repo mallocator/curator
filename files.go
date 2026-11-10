@@ -90,7 +90,7 @@ func findEpisodeFiles(dirs []string, series string, season, episode int) []strin
 	for _, dir := range dirs {
 		_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
-				return nil // unreadable entries are skipped
+				return nil //nolint:nilerr // an unreadable entry is skipped, the walk goes on
 			}
 			if d.IsDir() {
 				if strings.HasPrefix(d.Name(), "@") || strings.HasPrefix(d.Name(), ".") {

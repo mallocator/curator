@@ -26,6 +26,10 @@ func newFakeQbt(t *testing.T, torrents []Torrent, files map[string][]TorrentFile
 		defer f.mu.Unlock()
 		switch r.URL.Path {
 		case "/api/v2/auth/login":
+			r.ParseForm()
+			if r.Form.Get("username") != "admin" || r.Form.Get("password") != "secret" {
+				t.Errorf("login form = %v", r.Form)
+			}
 			f.logins++
 			w.WriteHeader(http.StatusNoContent) // qBittorrent 5
 		case "/api/v2/torrents/info":

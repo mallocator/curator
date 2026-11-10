@@ -129,7 +129,7 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("/jellyfin", a.handleJellyfin)
 	// Sonarr/Radarr "Connect" webhooks (On Series/Movie Add): route new items right away.
 	arrHook := func(w http.ResponseWriter, r *http.Request) {
-		io.Copy(io.Discard, r.Body)
+		_, _ = io.Copy(io.Discard, r.Body) // the payload is unused; a broken body still triggers routing
 		go a.Route()
 		okResponse(w)
 	}
@@ -180,11 +180,11 @@ func (a *App) handlePlex(w http.ResponseWriter, r *http.Request) {
 		okResponse(w)
 		return
 	}
-	switch {
-	case p.Metadata.Type == "episode":
+	switch p.Metadata.Type {
+	case "episode":
 		a.Watched(WatchEvent{Source: "plex", Type: "episode", Series: p.Metadata.GrandparentTitle,
 			Season: p.Metadata.ParentIndex, Episode: p.Metadata.Index, Title: p.Metadata.Title, User: p.Account.Title})
-	case p.Metadata.Type == "movie":
+	case "movie":
 		e := movieOrEpisode("plex", p.Metadata.Title)
 		e.User = p.Account.Title
 		if e.Type == "movie" {

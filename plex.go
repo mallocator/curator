@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -21,7 +22,7 @@ func NewPlex(baseURL, root string) *Plex {
 }
 
 func (p *Plex) get(path string, out any) error {
-	req, err := http.NewRequest("GET", p.BaseURL+path, nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", p.BaseURL+path, nil)
 	if err != nil {
 		return err
 	}

@@ -84,7 +84,8 @@ func alreadyMoved(path string) bool {
 		return false
 	}
 	moved := true
-	filepath.WalkDir(p, func(f string, d fs.DirEntry, err error) error {
+	// The callback handles every error itself (an unreadable entry means "not moved"), so WalkDir returns nil.
+	_ = filepath.WalkDir(p, func(f string, d fs.DirEntry, err error) error {
 		if err != nil {
 			moved = false
 			return filepath.SkipAll

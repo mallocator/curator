@@ -1,0 +1,36 @@
+# golangci-lint v2. Standard set plus a few cheap linters for the mistakes these services make:
+# error wrapping, unclosed HTTP bodies, requests without a context (no timeout), nolint without a reason.
+version: "2"
+
+linters:
+  default: standard # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - bodyclose # every HTTP client call closes resp.Body
+    - errorlint # errors.Is/As and %w instead of == and %v
+    - nilerr # returns nil right after checking err != nil
+    - noctx # outbound requests carry a context, so timeouts and cancel work
+    - nolintlint # every //nolint names the linter and gives a reason
+    - unconvert # needless type conversions
+    - usetesting # t.TempDir, t.Setenv, t.Context instead of hand-rolled versions
+  settings:
+    errcheck:
+      check-type-assertions: true
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+  exclusions:
+    generated: lax
+    presets:
+      - std-error-handling # unchecked Close/Fprint on writers that cannot usefully fail
+    rules:
+      # Test fakes write responses and fixtures without checking; a failed write fails the assertion anyway.
+      - path: _test\.go
+        linters: [errcheck, noctx]
+
+formatters:
+  enable:
+    - goimports # gofmt plus sorted, grouped imports
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

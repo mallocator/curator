@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -97,7 +99,7 @@ func (s *Simkl) token() (string, error) {
 		return "", errors.New("simkl token expired and no refresh token: sign in again")
 	}
 	form := url.Values{"grant_type": {"refresh_token"}, "refresh_token": {t.RefreshToken}, "client_id": {s.ClientID}}
-	req, _ := http.NewRequest("POST", simklAPI+"/oauth2/token", strings.NewReader(form.Encode()))
+	req, _ := http.NewRequestWithContext(context.Background(), "POST", simklAPI+"/oauth2/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("simkl-api-key", s.ClientID)
 	resp, err := s.Client.Do(req)
@@ -133,7 +135,7 @@ func (s *Simkl) AllItems() (*simklAll, error) {
 	if err != nil {
 		return nil, err
 	}
-	req, _ := http.NewRequest("GET", simklAPI+"/sync/all-items/?extended=full", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", simklAPI+"/sync/all-items/?extended=full", nil)
 	req.Header.Set("Authorization", "Bearer "+tok)
 	req.Header.Set("simkl-api-key", s.ClientID)
 	resp, err := s.Client.Do(req)
@@ -166,7 +168,7 @@ func (s *Seerr) do(method, path string, body, out any) (int, error) {
 		data, _ := json.Marshal(body)
 		rd = bytes.NewReader(data)
 	}
-	req, err := http.NewRequest(method, s.BaseURL+path, rd)
+	req, err := http.NewRequestWithContext(context.Background(), method, s.BaseURL+path, rd)
 	if err != nil {
 		return 0, err
 	}
@@ -233,7 +235,7 @@ func (s *Seerr) MovieAvailable(tmdb int) (bool, string, int, error) {
 	}
 	year := 0
 	if len(m.ReleaseDate) >= 4 {
-		fmt.Sscan(m.ReleaseDate[:4], &year)
+		year, _ = strconv.Atoi(m.ReleaseDate[:4]) // stays 0 when the date is malformed
 	}
 	return m.MediaInfo != nil && m.MediaInfo.Status == 5, m.Title, year, nil // 5 = AVAILABLE
 }
@@ -357,7 +359,7 @@ func (a *App) SimklSync() bool {
 		mem = loadRuleMemory(a.Config.SimklRulesFile, radarrMovies, isExcluded)
 		for k := range want {
 			avail, title, year, err := a.Seerr.MovieAvailable(k.TMDB)
-			if err != nil || !(avail || haveCopy[k.TMDB]) {
+			if err != nil || (!avail && !haveCopy[k.TMDB]) {
 				continue
 			}
 			haveCopy[k.TMDB] = true

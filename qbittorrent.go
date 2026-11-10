@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -54,7 +55,7 @@ func (q *Qbittorrent) Login() error {
 	if q.Username == "" {
 		return nil
 	}
-	resp, err := q.Client.PostForm(q.BaseURL+"/api/v2/auth/login", url.Values{"username": {q.Username}, "password": {q.Password}})
+	resp, err := q.postForm("/api/v2/auth/login", url.Values{"username": {q.Username}, "password": {q.Password}})
 	if err != nil {
 		return fmt.Errorf("qbittorrent login: %w", err)
 	}
@@ -66,8 +67,21 @@ func (q *Qbittorrent) Login() error {
 	return nil
 }
 
+func (q *Qbittorrent) postForm(path string, form url.Values) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(context.Background(), "POST", q.BaseURL+path, strings.NewReader(form.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	return q.Client.Do(req)
+}
+
 func (q *Qbittorrent) get(path string, out any) error {
-	resp, err := q.Client.Get(q.BaseURL + path)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", q.BaseURL+path, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := q.Client.Do(req)
 	if err != nil {
 		return fmt.Errorf("qbittorrent GET %s: %w", path, err)
 	}
@@ -90,7 +104,7 @@ func (q *Qbittorrent) Files(hash string) ([]TorrentFile, error) {
 
 // Remove deletes a torrent together with whatever is left of its files.
 func (q *Qbittorrent) Remove(hash string) error {
-	resp, err := q.Client.PostForm(q.BaseURL+"/api/v2/torrents/delete", url.Values{"hashes": {hash}, "deleteFiles": {"true"}})
+	resp, err := q.postForm("/api/v2/torrents/delete", url.Values{"hashes": {hash}, "deleteFiles": {"true"}})
 	if err != nil {
 		return fmt.Errorf("qbittorrent delete: %w", err)
 	}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -84,7 +85,7 @@ func (s *Arr) do(method, path string, body any, out any) error {
 		}
 		rd = bytes.NewReader(data)
 	}
-	req, err := http.NewRequest(method, s.BaseURL+path, rd)
+	req, err := http.NewRequestWithContext(context.Background(), method, s.BaseURL+path, rd)
 	if err != nil {
 		return err
 	}
