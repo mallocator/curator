@@ -211,3 +211,7 @@ docker build -t curator .
 CI runs the same lint and race tests on every Go change. Releases: pushing a `vX.Y.Z` tag builds binaries for
 Linux, macOS and Windows (amd64, arm64) with the tag as the version, a GitHub release with checksums, and the
 multi-platform image `mallox/curator` on Docker Hub (tag and `latest`). The binary logs its version at start.
+
+## License
+
+Apache License 2.0, see [LICENSE](LICENSE).
