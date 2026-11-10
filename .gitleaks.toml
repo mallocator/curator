@@ -21,3 +21,10 @@ id = "google-oauth-client-secret"
 description = "Google OAuth client secret"
 regex = '''\bGOCSPX-[A-Za-z0-9_\-]{20,}'''
 keywords = ["gocspx-"]
+
+# betterleaks' generic-password rule fires on references, not values (2026-11-10): 1Password item names in comments
+# ("1Password: \"<item>\"", gairola) and {env}NAME lookups in configs (local webdav). Lines with these only.
+[[allowlists]]
+description = "references to a secret, not the secret: 1Password item names, {env}NAME lookups"
+regexTarget = "line"
+regexes = ['''1Password: "[^"]+"''', '''password"?\s*[:=]\s*"\{env\}[A-Z0-9_]+"''']
