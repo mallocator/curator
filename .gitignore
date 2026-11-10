@@ -1,1 +1,11 @@
+.DS_Store
+.history/
+node_modules/
+.env
+
+# Built binaries (go build, release names curator-<os>-<arch>); never commit them
 /curator
+/plex-clean
+/curator-*
+/out/
+*.exe
