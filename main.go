@@ -105,6 +105,9 @@ type Config struct {
 	ProtectedDirs []string // never deleted in, in addition to the archive directories
 }
 
+// version is set by the release build (-ldflags "-X main.version=v1.2.3").
+var version = "dev"
+
 func main() {
 	// "curator healthcheck" is the Docker healthcheck: the image has no shell or curl.
 	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
@@ -162,8 +165,8 @@ func main() {
 		go loopRetry(config.SimklInterval, 10*time.Minute, app.SimklSync)
 	}
 
-	log.Printf("curator listening on :%d (grace %s, dry run %v, sonarr %v, radarr %v, sweep %v, user folders %d, simkl %v, upgrades %v, movie deletion %v)",
-		config.Port, config.GracePeriod, config.DryRun, app.Sonarr != nil, app.Radarr != nil,
+	log.Printf("curator %s listening on :%d (grace %s, dry run %v, sonarr %v, radarr %v, sweep %v, user folders %d, simkl %v, upgrades %v, movie deletion %v)",
+		version, config.Port, config.GracePeriod, config.DryRun, app.Sonarr != nil, app.Radarr != nil,
 		app.Qbt != nil && config.SweepInterval > 0, len(config.UserFolders), app.Simkl != nil, config.UpgradeInterval,
 		config.MovieDeleteUsers)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", config.Port), app.Routes()))

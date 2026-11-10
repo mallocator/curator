@@ -203,7 +203,11 @@ everywhere), because Sonarr and qBittorrent report their own paths.
 ## Development
 
 ```bash
+golangci-lint run      # lint and format check (.golangci.yml); `golangci-lint fmt` fixes formatting
 go test -race ./...
+docker build -t curator .
 ```
 
-Releases: pushing a `v*` tag builds and publishes `mallox/curator` to Docker Hub.
+CI runs the same lint and race tests on every Go change. Releases: pushing a `vX.Y.Z` tag builds binaries for
+Linux, macOS and Windows (amd64, arm64) with the tag as the version, a GitHub release with checksums, and the
+multi-platform image `mallox/curator` on Docker Hub (tag and `latest`). The binary logs its version at start.

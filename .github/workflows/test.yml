@@ -1,29 +1,30 @@
-name: Tests
+# Lint and test on Go changes to main and in PRs; release.yml calls it before building.
+name: Test
 
 on:
   push:
-    branches: [ main ]
-    paths:
-      - '**.go'
-      - go.mod
-      - go.sum
+    branches: [main]
+    paths: ['**.go', go.mod, go.sum, .golangci.yml, .github/workflows/test.yml]
   pull_request:
-    branches: [ main ]
-    paths:
-      - '**.go'
-      - go.mod
-      - go.sum
+    paths: ['**.go', go.mod, go.sum, .golangci.yml, .github/workflows/test.yml]
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-
-      - name: Run tests
-        run: go test -v ./...
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: latest
+      - run: go test -race ./...

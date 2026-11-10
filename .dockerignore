@@ -1,0 +1,8 @@
+# Only the sources reach the build context.
+.git
+.github
+.idea
+.DS_Store
+curator
+plex-clean
+*.md
