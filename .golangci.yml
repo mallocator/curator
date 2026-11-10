@@ -1,3 +1,4 @@
+# Source: standards configs/go/.golangci.yml. Copy it unchanged (this line lets scripts/repos.ts report drift).
 # golangci-lint v2. Standard set plus a few cheap linters for the mistakes these services make:
 # error wrapping, unclosed HTTP bodies, requests without a context (no timeout), nolint without a reason.
 version: "2"
@@ -34,3 +35,11 @@ formatters:
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
+
+# Terse output for agents and hooks: no source line and caret, no stats footer (46 to 26 tokens per finding).
+output:
+  formats:
+    text:
+      print-issued-lines: false
+      colors: false
+  show-stats: false
