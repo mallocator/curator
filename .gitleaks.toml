@@ -1,0 +1,23 @@
+# Copy of configs/gitleaks/base.toml from the owner's standards repo (copied 2026-11-10; a public repo keeps a copy
+# instead of extending it): the gitleaks defaults plus tokens they miss. Allowlists for this repo go below, narrow
+# and documented.
+[extend]
+useDefault = true
+
+[[rules]]
+id = "anthropic-oauth-token"
+description = "Claude Code OAuth token"
+regex = '''sk-ant-oat\d{2}-[A-Za-z0-9_\-]{40,}'''
+keywords = ["sk-ant-oat"]
+
+[[rules]]
+id = "google-oauth-refresh-token"
+description = "Google OAuth refresh token"
+regex = '''\b1//0[A-Za-z0-9_\-]{30,}'''
+keywords = ["1//0"]
+
+[[rules]]
+id = "google-oauth-client-secret"
+description = "Google OAuth client secret"
+regex = '''\bGOCSPX-[A-Za-z0-9_\-]{20,}'''
+keywords = ["gocspx-"]

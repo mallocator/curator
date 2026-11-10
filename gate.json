@@ -1,0 +1,4 @@
+{
+  "preCommit": ["golangci-lint run"],
+  "prePush": ["go test -race ./..."]
+}
