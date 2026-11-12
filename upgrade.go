@@ -23,7 +23,8 @@ import (
 //   - searched every 30 min for the first 6 h, hourly until 2 days, every 6 h until UPGRADE_WINDOW;
 //   - the app decides: curator grabs the first approved release of an interactive search (the app's own order);
 //   - fallback: with no file and nothing approved after UPGRADE_FALLBACK, the best release rejected only for the size
-//     floor is grabbed, else the best 720p one. Upgrades continue after that until the window ends;
+//     floor is grabbed, else the best one a resolution step below the profile's lowest (720p for a 1080p profile,
+//     1080p for a 4K-only one). Upgrades continue after that until the window ends;
 //   - watched items (grace queue, Jellyfin played marks) and files being played are skipped; at most
 //     UPGRADE_MAX_SEARCHES searches per run;
 //   - groups whose imports measured starved (imports.go) are passed over when the app approved another release.
@@ -66,18 +67,58 @@ func (a *Arr) Grab(r arrRelease) error {
 	return c.do("POST", "/api/v3/release", map[string]any{"guid": r.GUID, "indexerId": r.IndexerID}, nil)
 }
 
-// cutoffScores returns each quality profile's cutoff format score.
-func (a *Arr) cutoffScores() (map[int]int, error) {
+// arrProfile is what the upgrade search needs from a quality profile.
+type arrProfile struct {
+	Cutoff   int // cutoff format score
+	Fallback int // resolution the fallback may take: one step below the lowest allowed (0: none)
+}
+
+type profileItem struct {
+	Allowed bool `json:"allowed"`
+	Quality struct {
+		Resolution int `json:"resolution"`
+	} `json:"quality"`
+	Items []profileItem `json:"items"`
+}
+
+// resolutionSteps: the resolutions releases come in, highest first.
+var resolutionSteps = []int{2160, 1080, 720, 576, 480}
+
+// qualityProfiles returns each quality profile's cutoff format score and fallback resolution.
+func (a *Arr) qualityProfiles() (map[int]arrProfile, error) {
 	var ps []struct {
-		ID                int `json:"id"`
-		CutoffFormatScore int `json:"cutoffFormatScore"`
+		ID                int           `json:"id"`
+		CutoffFormatScore int           `json:"cutoffFormatScore"`
+		Items             []profileItem `json:"items"`
 	}
 	if err := a.do("GET", "/api/v3/qualityprofile", nil, &ps); err != nil {
 		return nil, err
 	}
-	m := map[int]int{}
+	m := map[int]arrProfile{}
 	for _, p := range ps {
-		m[p.ID] = p.CutoffFormatScore
+		lowest := 0
+		for _, it := range p.Items {
+			if !it.Allowed {
+				continue
+			}
+			res := []int{it.Quality.Resolution} // a single quality, or a group's members
+			for _, q := range it.Items {
+				res = append(res, q.Quality.Resolution)
+			}
+			for _, r := range res {
+				if r > 0 && (lowest == 0 || r < lowest) {
+					lowest = r
+				}
+			}
+		}
+		fb := 0
+		for _, step := range resolutionSteps {
+			if step < lowest {
+				fb = step
+				break
+			}
+		}
+		m[p.ID] = arrProfile{Cutoff: p.CutoffFormatScore, Fallback: fb}
 	}
 	return m, nil
 }
@@ -86,26 +127,27 @@ func sizeFloor(m string) bool { return strings.Contains(m, "is smaller than mini
 func notWanted(m string) bool { return strings.Contains(m, "is not wanted in profile") }
 
 // fallbackRelease picks what to take when nothing is acceptable: the best release whose only problem is the size
-// floor, else the best 720p one rejected only for its quality (and size). Best = format score, then size.
-func fallbackRelease(rs []arrRelease) (arrRelease, string, bool) {
-	tiers := []struct {
+// floor, else the best one at resolution res (the profile's fallback; 0: none) rejected only for its quality (and
+// size). Best = format score, then size.
+func fallbackRelease(rs []arrRelease, res int) (arrRelease, string, bool) {
+	type tier struct {
 		reason string
-		ok     func(r arrRelease, m string) bool
-	}{
-		{"under the size floor", func(r arrRelease, m string) bool { return sizeFloor(m) }},
-		{"720p", func(r arrRelease, m string) bool {
-			return r.Quality.Quality.Resolution == 720 && (sizeFloor(m) || notWanted(m))
-		}},
+		res    int // only releases at this resolution (0: any)
+		ok     func(m string) bool
 	}
-	for _, tier := range tiers {
+	tiers := []tier{{"under the size floor", 0, sizeFloor}}
+	if res > 0 {
+		tiers = append(tiers, tier{fmt.Sprintf("%dp", res), res, func(m string) bool { return sizeFloor(m) || notWanted(m) }})
+	}
+	for _, t := range tiers {
 		var cands []arrRelease
 		for _, r := range rs {
-			if r.Approved || len(r.Rejections) == 0 || (tier.reason == "720p" && r.Quality.Quality.Resolution != 720) {
+			if r.Approved || len(r.Rejections) == 0 || (t.res > 0 && r.Quality.Quality.Resolution != t.res) {
 				continue
 			}
 			ok := true
 			for _, m := range r.Rejections {
-				ok = ok && tier.ok(r, m)
+				ok = ok && t.ok(m)
 			}
 			if ok {
 				cands = append(cands, r)
@@ -118,7 +160,7 @@ func fallbackRelease(rs []arrRelease) (arrRelease, string, bool) {
 				}
 				return cands[i].Size > cands[j].Size
 			})
-			return cands[0], tier.reason, true
+			return cands[0], t.reason, true
 		}
 	}
 	return arrRelease{}, "", false
@@ -135,6 +177,8 @@ type upgradeItem struct {
 	File    string // base name of the current file
 	Score   int    // the current file's format score
 	Watched bool
+	// resolution the fallback may take (arrProfile.Fallback)
+	Fallback int
 }
 
 func (it upgradeItem) state() string {
@@ -329,7 +373,7 @@ func (a *App) upgradeOne(app *Arr, it upgradeItem, fallback bool) {
 		break
 	}
 	if reason == "" && fallback {
-		if r, why, ok := fallbackRelease(rs); ok {
+		if r, why, ok := fallbackRelease(rs, it.Fallback); ok {
 			pick, reason = r, "fallback"
 			log.Printf("Upgrades (%s): nothing acceptable for %s after %s; falling back to a release %s", it.App, it.Name,
 				a.Config.UpgradeFallback, why)
@@ -374,7 +418,7 @@ type sonarrCalendarEpisode struct {
 // sonarrUpgradeItems: monitored episodes aired within the window that are missing or below cutoff, and older
 // missing ones.
 func (a *App) sonarrUpgradeItems(now time.Time) ([]upgradeItem, error) {
-	cutoffs, err := a.Sonarr.cutoffScores()
+	profiles, err := a.Sonarr.qualityProfiles()
 	if err != nil {
 		return nil, err
 	}
@@ -412,9 +456,10 @@ func (a *App) sonarrUpgradeItems(now time.Time) ([]upgradeItem, error) {
 		}
 		seen[e.ID] = true
 		it := upgradeItem{Key: fmt.Sprintf("sonarr:%d", e.ID), App: "Sonarr", Query: fmt.Sprintf("episodeId=%d", e.ID),
-			Name: fmt.Sprintf("%s S%02dE%02d", e.Series.Title, e.SeasonNumber, e.EpisodeNumber), Since: aired}
+			Name: fmt.Sprintf("%s S%02dE%02d", e.Series.Title, e.SeasonNumber, e.EpisodeNumber), Since: aired,
+			Fallback: profiles[e.Series.QualityProfileID].Fallback}
 		if e.HasFile && e.EpisodeFile != nil {
-			if !e.EpisodeFile.QualityCutoffNotMet && e.EpisodeFile.CustomFormatScore >= cutoffs[e.Series.QualityProfileID] {
+			if !e.EpisodeFile.QualityCutoffNotMet && e.EpisodeFile.CustomFormatScore >= profiles[e.Series.QualityProfileID].Cutoff {
 				continue
 			}
 			if now.Sub(aired) > a.Config.UpgradeWindow {
@@ -453,7 +498,7 @@ type radarrMovieFile struct {
 // radarrUpgradeItems: monitored, available movies that are missing, or that became available (or were added)
 // within the window and are below cutoff.
 func (a *App) radarrUpgradeItems(now time.Time) ([]upgradeItem, error) {
-	cutoffs, err := a.Radarr.cutoffScores()
+	profiles, err := a.Radarr.qualityProfiles()
 	if err != nil {
 		return nil, err
 	}
@@ -486,7 +531,8 @@ func (a *App) radarrUpgradeItems(now time.Time) ([]upgradeItem, error) {
 			continue
 		}
 		it := upgradeItem{Key: fmt.Sprintf("radarr:%d", m.ID), App: "Radarr", Query: fmt.Sprintf("movieId=%d", m.ID),
-			Name: fmt.Sprintf("%s (%d)", m.Title, m.Year), Since: since, Watched: watched[m.TmdbID]}
+			Name: fmt.Sprintf("%s (%d)", m.Title, m.Year), Since: since, Watched: watched[m.TmdbID],
+			Fallback: profiles[m.QualityProfileID].Fallback}
 		if m.HasFile {
 			if now.Sub(since) > a.Config.UpgradeWindow {
 				continue
@@ -496,7 +542,7 @@ func (a *App) radarrUpgradeItems(now time.Time) ([]upgradeItem, error) {
 				continue
 			}
 			f := files[0]
-			if !f.QualityCutoffNotMet && f.CustomFormatScore >= cutoffs[m.QualityProfileID] {
+			if !f.QualityCutoffNotMet && f.CustomFormatScore >= profiles[m.QualityProfileID].Cutoff {
 				continue
 			}
 			it.HasFile, it.Score, it.File = true, f.CustomFormatScore, filepath.Base(f.Path)

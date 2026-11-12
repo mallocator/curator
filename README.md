@@ -99,7 +99,8 @@ Simkl/Seerr list sync. A single Go binary with no dependencies. Named plex-clean
    `UPGRADE_WINDOW` that are missing or below their profile's cutoff (format score or quality), and for older missing
    ones daily: every 30 min for the first 6 h, hourly until 2 days, then every 6 h. It grabs the app's first approved
    release (the app's own ranking). With no file and nothing approved after `UPGRADE_FALLBACK`, the requirement is
-   relaxed: the best release rejected only for the size floor, else the best 720p one. Watched items (pending queue,
+   relaxed: the best release rejected only for the size floor, else the best one a resolution step below the lowest
+   the profile allows (720p for a 1080p profile, 1080p for a 4K-only one). Watched items (pending queue,
    Jellyfin played movies) and files playing in Jellyfin/Plex are skipped; at most `UPGRADE_MAX_SEARCHES` per run.
 10. **Import checks** (with the upgrade search): every file imported within `UPGRADE_WINDOW` is measured in MB per
    minute of runtime (`/metrics`). A file whose picture is smaller than its quality claims (a "1080p" that is 720p) has
@@ -159,7 +160,7 @@ refused and logged.
 | `STALL_TIMEOUT` | `12h` | Sonarr/Radarr torrents without data this long are rejected; `0` disables |
 | `UPGRADE_INTERVAL` | `10m` | Upgrade search and import checks; `0` disables |
 | `UPGRADE_WINDOW` | `336h` | New episodes/movies are looked after for 14 days |
-| `UPGRADE_FALLBACK` | `48h` | Without anything acceptable this long, the size floor (then 1080p) is relaxed |
+| `UPGRADE_FALLBACK` | `48h` | Without anything acceptable this long, the size floor (then the profile's lowest resolution, by one step) is relaxed |
 | `UPGRADE_MAX_SEARCHES` | `6` | Interactive searches per run (each queries every automatic indexer) |
 | `UPGRADE_STATE_FILE`, `GROUP_STATS_FILE` | `/data/upgrades.json`, `/data/groups.json` | Search schedule, measured release groups |
 | `IMPORT_MIN_MB_PER_MIN` | `12` | Imports below are counted; groups staying below are passed over |

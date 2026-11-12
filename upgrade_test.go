@@ -44,9 +44,53 @@ func TestFallbackRelease(t *testing.T) {
 		}, ""},
 	}
 	for _, c := range cases {
-		got, _, ok := fallbackRelease(c.rs)
+		got, _, ok := fallbackRelease(c.rs, 720)
 		if got.Title != c.want || ok != (c.want != "") {
 			t.Errorf("%s: got %q (%v), want %q", c.name, got.Title, ok, c.want)
+		}
+	}
+	// a 4K-only profile falls back to 1080p, not past it to 720p (Blue Planet III, 2026-11-12)
+	uhd := []arrRelease{
+		rel("720p WEB-DL", 270, false, 720, "WEBDL-720p is not wanted in profile"),
+		rel("1080p MeGusta", -490, false, 1080, "HDTV-1080p is not wanted in profile"),
+		rel("1080p WEB-DL", 270, false, 1080, "WEBDL-1080p is not wanted in profile"),
+	}
+	if got, why, _ := fallbackRelease(uhd, 1080); got.Title != "1080p WEB-DL" || why != "1080p" {
+		t.Errorf("4K profile: got %q (%s), want 1080p WEB-DL", got.Title, why)
+	}
+	if got, _, ok := fallbackRelease(uhd, 0); ok {
+		t.Errorf("no quality fallback: got %q", got.Title)
+	}
+}
+
+func TestProfileFallback(t *testing.T) {
+	q := func(res int, allowed bool) map[string]any {
+		return map[string]any{"quality": map[string]any{"resolution": res}, "allowed": allowed, "items": []any{}}
+	}
+	group := func(allowed bool, res ...int) map[string]any {
+		var items []any
+		for _, r := range res {
+			items = append(items, q(r, allowed))
+		}
+		return map[string]any{"name": "group", "allowed": allowed, "items": items}
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode([]map[string]any{
+			{"id": 4, "cutoffFormatScore": 200, "items": []any{q(0, false), q(720, false), group(true, 1080, 1080)}},
+			{"id": 5, "cutoffFormatScore": 0, "items": []any{q(1080, false), q(2160, true), q(2160, true)}},
+			{"id": 7, "cutoffFormatScore": 350, "items": []any{q(720, false), group(true, 1080, 2160)}},
+			{"id": 2, "cutoffFormatScore": 0, "items": []any{q(480, true), q(720, false)}},
+		})
+	}))
+	defer srv.Close()
+	ps, err := NewArr(srv.URL, "key").qualityProfiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[int]arrProfile{4: {200, 720}, 5: {0, 1080}, 7: {350, 720}, 2: {0, 0}}
+	for id, w := range want {
+		if ps[id] != w {
+			t.Errorf("profile %d: got %+v, want %+v", id, ps[id], w)
 		}
 	}
 }
