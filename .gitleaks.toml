@@ -1,6 +1,7 @@
-# Copy of configs/gitleaks/base.toml from the owner's standards repo (copied 2026-11-10; a public repo keeps a copy
-# instead of extending it): the gitleaks defaults plus tokens they miss. Allowlists for this repo go below, narrow
-# and documented.
+# Copy of configs/gitleaks/base.toml from the owner's standards repo (copied 2026-11-17). A public repo keeps a copy
+# instead of extending it by path; repo additions go at the end, narrow and documented.
+# Shared gitleaks rules: the defaults plus tokens they miss (checked with synthetic values, 2026-10-29).
+# Repos extend this file instead of copying it (README.md). Allowlists stay in each repo, narrow and documented.
 [extend]
 useDefault = true
 
@@ -22,9 +23,21 @@ description = "Google OAuth client secret"
 regex = '''\bGOCSPX-[A-Za-z0-9_\-]{20,}'''
 keywords = ["gocspx-"]
 
-# betterleaks' generic-password rule fires on references, not values (2026-11-10): 1Password item names in comments
-# ("1Password: \"<item>\"", gairola) and {env}NAME lookups in configs (local webdav). Lines with these only.
+# betterleaks' generic-password rule fires on references, not values (2026-11-10): 1Password item names and error
+# messages in comments ("1Password: \"<item>\"", gairola; 1Password: `<error>` in a lotar ticket, STD-140) and
+# {env}NAME lookups in configs (local webdav). Its match drops the "1" of 1Password, so the 1Password allowlist checks
+# the whole line: at least one 1Password reference and no other passw, psw or pw (a "p" it can't rule out keeps
+# the finding). A plain Password: "<value>", or a password next to a reference, still fires (tested 2026-11-15); a
+# login(user, "<secret>") call next to a reference doesn't. Both allowlists cover generic-password only, so another
+# rule's finding on the line, like a token next to a reference, still fires (STD-165).
 [[allowlists]]
-description = "references to a secret, not the secret: 1Password item names, {env}NAME lookups"
+description = "references to a secret, not the secret: 1Password item names and errors"
 regexTarget = "line"
-regexes = ['''1Password: "[^"]+"''', '''password"?\s*[:=]\s*"\{env\}[A-Z0-9_]+"''']
+targetRules = ["generic-password"]
+regexes = ['''(?i)^[\r\n]*(?:(?:[^p"\x60\r\n]|p+(?:[^aspw"\x60\r\n]|a[^ps"\x60\r\n]|as[^ps"\x60\r\n]|ass[^pw"\x60\r\n]|s[^pw"\x60\r\n]))|["\x60])*1password: (?:"(?:[^p"\x60\r\n]|p+(?:[^aspw"\x60\r\n]|a[^ps"\x60\r\n]|as[^ps"\x60\r\n]|ass[^pw"\x60\r\n]|s[^pw"\x60\r\n]))+"|\x60(?:[^p"\x60\r\n]|p+(?:[^aspw"\x60\r\n]|a[^ps"\x60\r\n]|as[^ps"\x60\r\n]|ass[^pw"\x60\r\n]|s[^pw"\x60\r\n]))+\x60)(?:1password: (?:"(?:[^p"\x60\r\n]|p+(?:[^aspw"\x60\r\n]|a[^ps"\x60\r\n]|as[^ps"\x60\r\n]|ass[^pw"\x60\r\n]|s[^pw"\x60\r\n]))+"|\x60(?:[^p"\x60\r\n]|p+(?:[^aspw"\x60\r\n]|a[^ps"\x60\r\n]|as[^ps"\x60\r\n]|ass[^pw"\x60\r\n]|s[^pw"\x60\r\n]))+\x60)|(?:(?:[^p"\x60\r\n]|p+(?:[^aspw"\x60\r\n]|a[^ps"\x60\r\n]|as[^ps"\x60\r\n]|ass[^pw"\x60\r\n]|s[^pw"\x60\r\n]))|["\x60]))*[\r\n]*$''']
+
+[[allowlists]]
+description = "references to a secret, not the secret: {env}NAME lookups"
+regexTarget = "line"
+targetRules = ["generic-password"]
+regexes = ['''password"?\s*[:=]\s*"\{env\}[A-Z0-9_]+"''']
