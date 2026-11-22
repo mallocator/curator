@@ -8,7 +8,8 @@ every setting). Runs as the image `mallox/curator` on the owner's NAS; the stack
 - Full suite (hook on push, CI): `go test -race ./...`. One test: `go test -run TestName ./...`.
 - Image: `docker build -t curator .`, then `docker run` it and `docker exec <container> /app/curator healthcheck`.
 - Release: push a `vX.Y.Z` tag; CI tests, builds binaries and the multi-platform image with the tag as the version.
-  The NAS pulls `latest` on its weekly update. A tag publishes: only with the owner's OK.
+  The NAS pulls `latest` on its weekly update. A tag publishes: a patch tag goes out when it's ready, without asking;
+  a minor or major tag only with the owner's OK.
 
 ## Differences from the global standards
 - Public repo, self-contained (owner 2026-11-09): no paths into the owner's Mac, no secrets. Configs
