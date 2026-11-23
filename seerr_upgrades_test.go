@@ -109,7 +109,7 @@ func newFakeUpgradeEnv(t *testing.T) (*fakeUpgradeEnv, *httptest.Server) {
 		case p == "/api/v3/rootfolder":
 			write([]map[string]any{{"path": "/downloads/ravi/movies"}})
 		case p == "/api/v3/tag" && r.Method == "GET":
-			write([]map[string]any{{"id": 1, "label": "1-mallox"}, {"id": 2, "label": "2-daniela"}})
+			write([]map[string]any{{"id": 1, "label": "1-mallox"}, {"id": 2, "label": "2-alice"}})
 		case p == "/api/v3/tag" && r.Method == "POST":
 			env.tagsCreated = append(env.tagsCreated, body["label"].(string))
 			write(map[string]any{"id": 3, "label": body["label"]})
@@ -160,7 +160,7 @@ func newUpgradeApp(t *testing.T, url string) (*App, *time.Time) {
 	a.Config.SeerrUpgradeProfile, a.Config.SeerrUpgradeDays = "4K preferred", 14
 	a.Config.SeerrUpgradeStateFile = filepath.Join(t.TempDir(), "seerr-upgrades.json")
 	a.Config.MovieArchiveTag, a.Config.MovieArchiveHostPath = "archive", "/volume1/Video/Movies"
-	a.Config.UserFolders = map[string]string{"1-mallox": "/downloads/ravi", "2-daniela": "/downloads/daniela"}
+	a.Config.UserFolders = map[string]string{"1-mallox": "/downloads/ravi", "2-alice": "/downloads/alice"}
 	return a, &now
 }
 
@@ -188,7 +188,7 @@ func TestSeerrUpgradeArchivedMovie(t *testing.T) {
 		t.Errorf("added movie settings: %v", m)
 	}
 	if tags := m["tags"].([]any); len(tags) != 2 || jsonInt(tags[0]) != 3 || jsonInt(tags[1]) != 2 {
-		t.Errorf("tags %v, want the archive tag (created) and the reporter's 2-daniela", tags)
+		t.Errorf("tags %v, want the archive tag (created) and the reporter's 2-alice", tags)
 	}
 	if len(env.tagsCreated) != 1 || env.tagsCreated[0] != "archive" {
 		t.Errorf("tags created %v", env.tagsCreated)

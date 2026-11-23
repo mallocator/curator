@@ -111,7 +111,7 @@ func TestArchiveMoviesFromJellyfinFavorites(t *testing.T) {
 		return full
 	}
 	heat := mk("ravi/movies/Heat (1995)/Heat (1995).mkv")
-	other := mk("daniela/movies/Lee (2024)/Lee (2024).mkv")
+	other := mk("alice/movies/Lee (2024)/Lee (2024).mkv")
 	var mu sync.Mutex
 	var deleted []string
 	radarr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -138,7 +138,7 @@ func TestArchiveMoviesFromJellyfinFavorites(t *testing.T) {
 		}
 		switch {
 		case r.URL.Path == "/Users":
-			json.NewEncoder(w).Encode([]map[string]any{{"Id": "u1", "Name": "mallox"}, {"Id": "u2", "Name": "Daniela"}})
+			json.NewEncoder(w).Encode([]map[string]any{{"Id": "u1", "Name": "mallox"}, {"Id": "u2", "Name": "Alice"}})
 		case r.URL.Path == "/Users/u1/Items" && r.URL.Query().Get("Filters") == "IsFavorite":
 			json.NewEncoder(w).Encode(map[string]any{"Items": []map[string]any{{"ProviderIds": map[string]string{"Tmdb": "949"}}}})
 		case r.URL.Path == "/Users/u2/Items":
@@ -158,7 +158,7 @@ func TestArchiveMoviesFromJellyfinFavorites(t *testing.T) {
 	a.Config.DeleteRoots = []string{dl}
 	a.ArchiveMovies()
 	if strings.Join(deleted, ",") != "1" {
-		t.Errorf("archived %v, want only mallox's favourite (Daniela's favourites don't count)", deleted)
+		t.Errorf("archived %v, want only mallox's favourite (Alice's favourites don't count)", deleted)
 	}
 	if _, err := os.Stat(filepath.Join(a.Config.MovieArchiveDir, "Heat (1995).mkv")); err != nil {
 		t.Error(err)

@@ -15,12 +15,12 @@ func appWithOwners(t *testing.T, watchers map[string]string) (*App, *fakeSonarr)
 	a, fs := appWithSonarr(t)
 	// files are <media>/tv/<show>/<season>/<file>: <media> is Ravi's base folder
 	base := filepath.Dir(filepath.Dir(filepath.Dir(filepath.Dir(fs.files[11].Path))))
-	a.Config.UserFolders = map[string]string{"1-mallox": base, "2-daniela": "/downloads/daniela"}
+	a.Config.UserFolders = map[string]string{"1-mallox": base, "2-alice": "/downloads/alice"}
 	a.Config.Watchers = watchers
 	return a, fs
 }
 
-var houseWatchers = map[string]string{"mallox": "1-mallox", "owner": "1-mallox", "Daniela": "2-daniela", "gare347": "2-daniela"}
+var houseWatchers = map[string]string{"mallox": "1-mallox", "owner": "1-mallox", "Alice": "2-alice", "alice42": "2-alice"}
 
 func watchBy(a *App, user, series string, season, episode int, ago time.Duration) {
 	a.Queue.Add(WatchEvent{Source: "jellyfin", Type: "episode", Series: series, Season: season, Episode: episode, User: user},
@@ -30,10 +30,10 @@ func watchBy(a *App, user, series string, season, episode int, ago time.Duration
 func TestOtherUsersViewingKeepsOwnersFile(t *testing.T) {
 	a, fs := appWithOwners(t, houseWatchers)
 	path := fs.files[11].Path
-	watchBy(a, "Daniela", "The Simpsons", 38, 2, 30*time.Hour)
+	watchBy(a, "Alice", "The Simpsons", 38, 2, 30*time.Hour)
 	a.ProcessDue()
 	if len(fs.deleted) != 0 {
-		t.Fatalf("deleted %v: Daniela's viewing must not delete Ravi's file", fs.deleted)
+		t.Fatalf("deleted %v: Alice's viewing must not delete Ravi's file", fs.deleted)
 	}
 	if _, err := os.Stat(path); err != nil {
 		t.Fatal("file should still be there")
@@ -51,7 +51,7 @@ func TestOtherUsersViewingKeepsOwnersFile(t *testing.T) {
 
 func TestGracePeriodCountsFromOwnersViewing(t *testing.T) {
 	a, fs := appWithOwners(t, houseWatchers)
-	watchBy(a, "Daniela", "The Simpsons", 38, 2, 30*time.Hour)
+	watchBy(a, "Alice", "The Simpsons", 38, 2, 30*time.Hour)
 	watchBy(a, "mallox", "The Simpsons", 38, 2, 2*time.Hour) // joins the queued item
 	items := a.Queue.Items()
 	if len(items) != 1 || len(items[0].Watchers) != 2 {
@@ -91,7 +91,7 @@ func TestUnknownViewerKeepsOwnersFile(t *testing.T) {
 func TestOwnerRuleOffOrLegacyItems(t *testing.T) {
 	// WATCHERS empty: any viewing counts, as before.
 	a, fs := appWithOwners(t, nil)
-	watchBy(a, "Daniela", "The Simpsons", 38, 2, 30*time.Hour)
+	watchBy(a, "Alice", "The Simpsons", 38, 2, 30*time.Hour)
 	a.ProcessDue()
 	if fmt.Sprint(fs.deleted) != "[11]" {
 		t.Fatalf("rule off: deleted %v", fs.deleted)
@@ -113,7 +113,7 @@ func TestOwnerRuleOffOrLegacyItems(t *testing.T) {
 
 func TestOwnerRuleLeavesArchivingAlone(t *testing.T) {
 	a, fs := appWithOwners(t, houseWatchers)
-	watchBy(a, "Daniela", "Futurama", 11, 10, 30*time.Hour) // archive tag: a copy is kept, so anyone's viewing counts
+	watchBy(a, "Alice", "Futurama", 11, 10, 30*time.Hour) // archive tag: a copy is kept, so anyone's viewing counts
 	a.ProcessDue()
 	if fmt.Sprint(fs.deleted) != "[21]" {
 		t.Fatalf("deleted %v", fs.deleted)
@@ -122,8 +122,8 @@ func TestOwnerRuleLeavesArchivingAlone(t *testing.T) {
 
 func TestFilesOutsideUserFoldersFollowTheOldRule(t *testing.T) {
 	a, fs := appWithOwners(t, houseWatchers)
-	a.Config.UserFolders = map[string]string{"1-mallox": "/downloads/ravi", "2-daniela": "/downloads/daniela"}
-	watchBy(a, "Daniela", "The Simpsons", 38, 2, 30*time.Hour)
+	a.Config.UserFolders = map[string]string{"1-mallox": "/downloads/ravi", "2-alice": "/downloads/alice"}
+	watchBy(a, "Alice", "The Simpsons", 38, 2, 30*time.Hour)
 	a.ProcessDue()
 	if fmt.Sprint(fs.deleted) != "[11]" {
 		t.Fatalf("deleted %v", fs.deleted)
@@ -139,10 +139,10 @@ func TestByNameFilesNeedTheOwner(t *testing.T) {
 	a.Config.DeleteShows = []string{"MobLand"}
 	a.Config.UserFolders = map[string]string{"1-mallox": base}
 	a.Config.Watchers = houseWatchers
-	watchBy(a, "gare347", "MobLand", 2, 3, 30*time.Hour)
+	watchBy(a, "alice42", "MobLand", 2, 3, 30*time.Hour)
 	a.ProcessDue()
 	if _, err := os.Stat(f); err != nil {
-		t.Fatal("Daniela's viewing must not delete Ravi's file")
+		t.Fatal("Alice's viewing must not delete Ravi's file")
 	}
 	watchBy(a, "mallox", "MobLand", 2, 3, 25*time.Hour)
 	a.ProcessDue()
@@ -156,14 +156,14 @@ func TestWebhooksReportTheViewer(t *testing.T) {
 	srv := httptest.NewServer(a.Routes())
 	defer srv.Close()
 	rec := httptest.NewRecorder()
-	a.handlePlex(rec, plexRequest(t, `{"event":"media.scrobble","Account":{"id":2,"title":"gare347"},
+	a.handlePlex(rec, plexRequest(t, `{"event":"media.scrobble","Account":{"id":2,"title":"alice42"},
 		"Metadata":{"type":"episode","grandparentTitle":"The Simpsons","parentIndex":38,"index":2,"title":"x"}}`))
 	jf := httptest.NewRequest("POST", "/jellyfin", strings.NewReader(`{"NotificationType":"PlaybackStop","PlayedToCompletion":true,
-		"NotificationUsername":"Daniela","ItemType":"Episode","SeriesName":"The Simpsons","SeasonNumber":38,"EpisodeNumber":2,"Name":"x"}`))
+		"NotificationUsername":"Alice","ItemType":"Episode","SeriesName":"The Simpsons","SeasonNumber":38,"EpisodeNumber":2,"Name":"x"}`))
 	jf.Header.Set("Content-Type", "application/json")
 	a.handleJellyfin(httptest.NewRecorder(), jf)
 	items := a.Queue.Items()
-	if len(items) != 1 || len(items[0].Watchers) != 2 || items[0].Watchers[0].User != "gare347" || items[0].Watchers[1].User != "Daniela" {
+	if len(items) != 1 || len(items[0].Watchers) != 2 || items[0].Watchers[0].User != "alice42" || items[0].Watchers[1].User != "Alice" {
 		t.Fatalf("queue %+v", items)
 	}
 }

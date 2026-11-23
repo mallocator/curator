@@ -9,8 +9,8 @@ import (
 	"sync"
 )
 
-// Per-user download folders. Seerr tags every request with the requester ("2-daniela"; older versions "2 - daniela").
-// USER_FOLDERS maps users to a base folder ("2-daniela=/downloads/daniela"; the key may also be just the name);
+// Per-user download folders. Seerr tags every request with the requester ("2-alice"; older versions "2 - alice").
+// USER_FOLDERS maps users to a base folder ("2-alice=/downloads/alice"; the key may also be just the name);
 // shows go to <base>/<TV_SUBDIR>, movies to <base>/<MOVIE_SUBDIR>.
 //   - An item with a mapped user tag outside that user's folder is moved there.
 //   - An item without a user tag inside a user's folder (added or imported directly in Sonarr/Radarr) gets that
@@ -19,7 +19,7 @@ import (
 
 var userTagLabel = regexp.MustCompile(`^\d+\s?-\s?(.+)$`)
 
-// userName returns the user part of a Seerr tag label or USER_FOLDERS key ("2-daniela", "2 - daniela", "daniela").
+// userName returns the user part of a Seerr tag label or USER_FOLDERS key ("2-alice", "2 - alice", "alice").
 func userName(label string) string {
 	if m := userTagLabel.FindStringSubmatch(label); m != nil {
 		return normalizeTitle(m[1])

@@ -41,12 +41,12 @@ func TestFindEpisodeFiles(t *testing.T) {
 		return full
 	}
 	want := mk("ravi/futurama.s14e10.1080p.web.h264-cakes[EZTVx.to].mkv")
-	mk("ravi/futurama.s14e09.1080p.web.h264-cakes.mkv")            // other episode
-	mk("ravi/futurama.s14e10.1080p.web.h264-cakes.nfo")            // not a video
-	mk("ravi/@eaDir/futurama.s14e10.1080p.web.h264-cakes.mkv")     // Synology thumbnails
-	mk("ravi/Futurama Revisited S14E10.mkv")                       // different show
-	nested := mk("daniela/Futurama S14 1080p/Futurama.S14E10.mkv") // inside a season pack folder
-	got := findEpisodeFiles([]string{filepath.Join(root, "ravi"), filepath.Join(root, "daniela")}, "Futurama", 14, 10)
+	mk("ravi/futurama.s14e09.1080p.web.h264-cakes.mkv")          // other episode
+	mk("ravi/futurama.s14e10.1080p.web.h264-cakes.nfo")          // not a video
+	mk("ravi/@eaDir/futurama.s14e10.1080p.web.h264-cakes.mkv")   // Synology thumbnails
+	mk("ravi/Futurama Revisited S14E10.mkv")                     // different show
+	nested := mk("alice/Futurama S14 1080p/Futurama.S14E10.mkv") // inside a season pack folder
+	got := findEpisodeFiles([]string{filepath.Join(root, "ravi"), filepath.Join(root, "alice")}, "Futurama", 14, 10)
 	if len(got) != 2 || got[0] != want || got[1] != nested {
 		t.Fatalf("found %v", got)
 	}

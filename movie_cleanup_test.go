@@ -36,7 +36,7 @@ func movieApp(t *testing.T) (*App, *fakeRadarrMovies, string) {
 		{"id": 2, "tmdbId": 222, "title": "Keeper", "year": 2025, "tags": []int{1, 9}, "hasFile": true,
 			"movieFile": map[string]any{"path": file("ravi/movies/Keeper (2025)/Keeper (2025).mkv"), "size": 5}},
 		{"id": 3, "tmdbId": 333, "title": "Her Film", "year": 2024, "tags": []int{2}, "hasFile": true,
-			"movieFile": map[string]any{"path": file("daniela/movies/Her Film (2024)/Her Film (2024).mkv"), "size": 5}},
+			"movieFile": map[string]any{"path": file("alice/movies/Her Film (2024)/Her Film (2024).mkv"), "size": 5}},
 		{"id": 4, "tmdbId": 444, "title": "Masterplan", "year": 2026, "tags": []int{1}, "hasFile": true,
 			"movieFile": map[string]any{"path": file("ravi/movies/Masterplan (2026)/Masterplan (2026).mkv"), "size": 5}},
 	}}
@@ -45,7 +45,7 @@ func movieApp(t *testing.T) (*App, *fakeRadarrMovies, string) {
 		defer f.mu.Unlock()
 		switch {
 		case r.URL.Path == "/api/v3/tag":
-			json.NewEncoder(w).Encode([]SonarrTag{{ID: 1, Label: "1-mallox"}, {ID: 2, Label: "2-daniela"}, {ID: 9, Label: "archive"}})
+			json.NewEncoder(w).Encode([]SonarrTag{{ID: 1, Label: "1-mallox"}, {ID: 2, Label: "2-alice"}, {ID: 9, Label: "archive"}})
 		case r.URL.Path == "/api/v3/movie" && r.Method == http.MethodGet:
 			json.NewEncoder(w).Encode(f.movies)
 		case strings.HasPrefix(r.URL.Path, "/api/v3/movie/") && r.Method == http.MethodDelete:
@@ -60,7 +60,7 @@ func movieApp(t *testing.T) (*App, *fakeRadarrMovies, string) {
 	t.Cleanup(srv.Close)
 	a := newTestApp(t)
 	a.Radarr = NewArr(srv.URL, "k")
-	a.Config.UserFolders = map[string]string{"1-mallox": filepath.Join(dl, "ravi"), "2-daniela": filepath.Join(dl, "daniela")}
+	a.Config.UserFolders = map[string]string{"1-mallox": filepath.Join(dl, "ravi"), "2-alice": filepath.Join(dl, "alice")}
 	a.Config.Watchers = houseWatchers
 	a.Config.MovieDeleteUsers = []string{"1-mallox"}
 	a.Config.MovieArchiveTag = "archive"
@@ -103,8 +103,8 @@ func TestWatchedMovieKept(t *testing.T) {
 		year, tmdb        int
 	}{
 		{"tagged archive", "mallox", "Keeper", 2025, 222},
-		{"Daniela's folder, deletion only for Ravi", "Daniela", "Her Film", 2024, 333},
-		{"Ravi's movie, watched only by Daniela", "Daniela", "Runner", 2026, 1377237},
+		{"Alice's folder, deletion only for Ravi", "Alice", "Her Film", 2024, 333},
+		{"Ravi's movie, watched only by Alice", "Alice", "Runner", 2026, 1377237},
 		{"unknown viewer", "", "Runner", 2026, 1377237},
 		{"not in Radarr (archive)", "mallox", "Heat", 1995, 949},
 	}

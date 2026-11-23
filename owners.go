@@ -8,9 +8,9 @@ import (
 
 // Deleting after watching needs the folder's owner (WATCHERS, v2.17). A file in a user's folder (USER_FOLDERS) is
 // deleted only after that user watched it; another person's viewing keeps it (owner, 2026-10-26: a show Ravi
-// downloaded and Daniela had already seen stays until he watched it). WATCHERS maps the accounts that report
+// downloaded and Alice had already seen stays until he watched it). WATCHERS maps the accounts that report
 // viewings to USER_FOLDERS keys: Jellyfin user names, Plex account titles (webhook) and "owner" (the Plex poll), e.g.
-// "mallox=1-mallox,owner=1-mallox,daniela=2-daniela,gare347=2-daniela". The grace period counts from the owner's
+// "mallox=1-mallox,owner=1-mallox,alice=2-alice,alice42=2-alice". The grace period counts from the owner's
 // viewing. Unchanged (any viewing counts): files outside every user folder, archiving (it keeps a copy), queue
 // entries recorded before v2.17 (no viewers stored), and everything while WATCHERS is empty.
 

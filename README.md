@@ -45,8 +45,8 @@ Simkl/Seerr list sync. A single Go binary with no dependencies. Named plex-clean
      accounts that report viewings to `USER_FOLDERS` keys: Jellyfin user names, Plex account titles (webhook) and
      `owner` (the Plex poll). Archiving (keeps a copy), files outside every user folder and queue entries from before
      v2.17 keep the old rule (any viewing counts), as does everything while `WATCHERS` is empty.
-4. **Per-user folders**: Seerr tags each request with the requester (`2-daniela`). With `USER_FOLDERS`
-   (`2-daniela=/downloads/daniela,1-mallox=/downloads/ravi`; keys are Seerr's tag labels `<user id>-<name>`):
+4. **Per-user folders**: Seerr tags each request with the requester (`2-alice`). With `USER_FOLDERS`
+   (`2-alice=/downloads/alice,1-mallox=/downloads/ravi`; keys are Seerr's tag labels `<user id>-<name>`):
    - shows and movies carrying a user tag are moved through Sonarr/Radarr (`moveFiles=true`) into `<folder>/tv` or
      `<folder>/movies`;
    - shows and movies without a user tag that sit in a user's folder (added or imported directly) get that user's
@@ -142,8 +142,8 @@ refused and logged.
 | `JELLYFIN_URL`, `JELLYFIN_API_KEY`, `JELLYFIN_ARCHIVE_USERS` | | Jellyfin favourites of these users archive a movie like the tag |
 | `MOVIE_DELETE_USERS` | | `USER_FOLDERS` keys whose watched movies are deleted after the grace period unless archived; empty disables. Needs `WATCHERS` |
 | `RADARR_URL`, `RADARR_API_KEY` | | Radarr for per-user movie folders |
-| `USER_FOLDERS` | | `2-daniela=/base,1-mallox=/base2` (Seerr tag labels; a plain name also routes but can't be created as a tag) |
-| `WATCHERS` | | `mallocator=1-mallox,owner=1-mallox,daniela=2-daniela`: viewing account → `USER_FOLDERS` key; only the folder's owner's viewing deletes (empty: anyone's) |
+| `USER_FOLDERS` | | `2-alice=/base,1-mallox=/base2` (Seerr tag labels; a plain name also routes but can't be created as a tag) |
+| `WATCHERS` | | `mallocator=1-mallox,owner=1-mallox,alice=2-alice`: viewing account → `USER_FOLDERS` key; only the folder's owner's viewing deletes (empty: anyone's) |
 | `TV_SUBDIR`, `MOVIE_SUBDIR` | `tv`, `movies` | Subfolders below each user's base |
 | `SIMKL_CLIENT_ID`, `SIMKL_TOKEN_FILE` | , `/data/simkl.json` | Simkl app and token (`access_token`, `refresh_token`, `expires_in`, `obtained_at`) |
 | `SIMKL_INTERVAL` | `6h` | `0` disables the Simkl sync |
@@ -151,7 +151,7 @@ refused and logged.
 | `SEERR_URL`, `SEERR_API_KEY`, `SEERR_USER_ID` | , , `1` | Seerr for the blocklist (entries attributed to that user) |
 | `PLEX_URL`, `PLEX_COLLECTION_ROOT` | , `/volume1/Video` | Plex local API (no token from an allowed network) for the collection rule |
 | `ARCHIVE_SHOWS`, `DELETE_SHOWS` | | Comma-separated show names for shows not in Sonarr |
-| `SEARCH_DIRS` | `/downloads/ravi,/downloads/daniela` | Where name-based rules look for files |
+| `SEARCH_DIRS` | the `USER_FOLDERS` folders | Where name-based rules look for files |
 | `QBT_URL`, `QBT_USER`, `QBT_PASS` | | Enables the torrent sweep; credentials optional on qBittorrent's auth whitelist |
 | `SWEEP_INTERVAL` | `15m` | `0` disables the sweep |
 | `SWEEP_ROOT` | `/downloads` | Only torrents saved below this path; must match qBittorrent's container path |

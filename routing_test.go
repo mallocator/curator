@@ -35,8 +35,8 @@ func newFakeArr(t *testing.T, kind string, items []map[string]any) (*fakeArr, *h
 			f.created = append(f.created, t.Label)
 			json.NewEncoder(w).Encode(t)
 		case r.URL.Path == "/api/v3/tag":
-			tags := []SonarrTag{{ID: 1, Label: "delete-after-watch"}, {ID: 2, Label: "2-daniela"},
-				{ID: 4, Label: "5 - daniela"}, {ID: 5, Label: "7-guest"}}
+			tags := []SonarrTag{{ID: 1, Label: "delete-after-watch"}, {ID: 2, Label: "2-alice"},
+				{ID: 4, Label: "5 - alice"}, {ID: 5, Label: "7-guest"}}
 			if !f.noMallox {
 				tags = append(tags, SonarrTag{ID: 3, Label: "1-mallox"})
 			}
@@ -57,7 +57,7 @@ func newFakeArr(t *testing.T, kind string, items []map[string]any) (*fakeArr, *h
 
 func routeApp(t *testing.T) *App {
 	a := newTestApp(t)
-	a.Config.UserFolders = map[string]string{"daniela": "/downloads/daniela", "mallox": "/downloads/ravi"}
+	a.Config.UserFolders = map[string]string{"alice": "/downloads/alice", "mallox": "/downloads/ravi"}
 	a.Config.TVSubdir, a.Config.MovieSubdir = "tv", "movies"
 	return a
 }
@@ -65,19 +65,19 @@ func routeApp(t *testing.T) *App {
 func TestRouteMovesSeriesToRequesterFolder(t *testing.T) {
 	a := routeApp(t)
 	fs, srv := newFakeArr(t, "series", []map[string]any{
-		{"id": 10, "title": "Bridgerton", "path": "/downloads/ravi/tv/Bridgerton", "tags": []int{1, 2}},  // Daniela: move
-		{"id": 11, "title": "Old Tag", "path": "/downloads/ravi/tv/Old Tag", "tags": []int{4}},           // "5 - daniela": move
+		{"id": 10, "title": "Bridgerton", "path": "/downloads/ravi/tv/Bridgerton", "tags": []int{1, 2}},  // Alice: move
+		{"id": 11, "title": "Old Tag", "path": "/downloads/ravi/tv/Old Tag", "tags": []int{4}},           // "5 - alice": move
 		{"id": 12, "title": "Severance", "path": "/downloads/ravi/tv/Severance", "tags": []int{3}},       // mallox, already right
 		{"id": 13, "title": "The Simpsons", "path": "/downloads/ravi/tv/The Simpsons", "tags": []int{1}}, // no user tag
 		{"id": 14, "title": "Guest Show", "path": "/downloads/ravi/tv/Guest Show", "tags": []int{5}},     // unmapped user
-		{"id": 15, "title": "Grey's", "path": "/downloads/daniela/tv/Grey's", "tags": []int{2}},          // already right
-		{"id": 16, "title": "Mine", "path": "/downloads/daniela/tv/Mine", "tags": []int{3}},              // mallox: move back
+		{"id": 15, "title": "Grey's", "path": "/downloads/alice/tv/Grey's", "tags": []int{2}},            // already right
+		{"id": 16, "title": "Mine", "path": "/downloads/alice/tv/Mine", "tags": []int{3}},                // mallox: move back
 	})
 	a.Sonarr = NewSonarr(srv.URL, "k")
 	a.Route()
 	want := map[string]string{
-		"/api/v3/series/10?moveFiles=true": "/downloads/daniela/tv/Bridgerton",
-		"/api/v3/series/11?moveFiles=true": "/downloads/daniela/tv/Old Tag",
+		"/api/v3/series/10?moveFiles=true": "/downloads/alice/tv/Bridgerton",
+		"/api/v3/series/11?moveFiles=true": "/downloads/alice/tv/Old Tag",
 		"/api/v3/series/16?moveFiles=true": "/downloads/ravi/tv/Mine",
 	}
 	if len(fs.puts) != len(want) {
@@ -101,7 +101,7 @@ func TestRouteMoviesUseMovieSubdir(t *testing.T) {
 	})
 	a.Radarr = NewArr(srv.URL, "k")
 	a.Route()
-	if fr.puts["/api/v3/movie/3?moveFiles=true"]["path"] != "/downloads/daniela/movies/Koln 75 (2025)" {
+	if fr.puts["/api/v3/movie/3?moveFiles=true"]["path"] != "/downloads/alice/movies/Koln 75 (2025)" {
 		t.Fatalf("puts %v", fr.puts)
 	}
 }
@@ -142,20 +142,20 @@ func TestSonarrWebhookTriggersRoute(t *testing.T) {
 }
 
 func TestParseMap(t *testing.T) {
-	m := parseMap(" daniela=/downloads/daniela/ , mallox=/downloads/ravi,bad")
-	if len(m) != 2 || m["daniela"] != "/downloads/daniela" || m["mallox"] != "/downloads/ravi" {
+	m := parseMap(" alice=/downloads/alice/ , mallox=/downloads/ravi,bad")
+	if len(m) != 2 || m["alice"] != "/downloads/alice" || m["mallox"] != "/downloads/ravi" {
 		t.Fatalf("%v", m)
 	}
 }
 
 func TestRouteTagsUntaggedItemsByFolder(t *testing.T) {
 	a := routeApp(t)
-	a.Config.UserFolders = map[string]string{"2-daniela": "/downloads/daniela", "1-mallox": "/downloads/ravi"}
+	a.Config.UserFolders = map[string]string{"2-alice": "/downloads/alice", "1-mallox": "/downloads/ravi"}
 	fs, srv := newFakeArr(t, "series", []map[string]any{
 		{"id": 20, "title": "The Simpsons", "path": "/downloads/ravi/tv/The Simpsons", "tags": []int{1}}, // -> 1-mallox
-		{"id": 21, "title": "Her Show", "path": "/downloads/daniela/tv/Her Show", "tags": []int{}},       // -> 2-daniela
+		{"id": 21, "title": "Her Show", "path": "/downloads/alice/tv/Her Show", "tags": []int{}},         // -> 2-alice
 		{"id": 22, "title": "Elsewhere", "path": "/downloads/sonarr/Elsewhere", "tags": []int{}},         // not a user folder
-		{"id": 23, "title": "Tagged", "path": "/downloads/daniela/tv/Tagged", "tags": []int{2}},          // already tagged
+		{"id": 23, "title": "Tagged", "path": "/downloads/alice/tv/Tagged", "tags": []int{2}},            // already tagged
 	})
 	a.Sonarr = NewSonarr(srv.URL, "k")
 	a.Route()
@@ -175,7 +175,7 @@ func TestRouteTagsUntaggedItemsByFolder(t *testing.T) {
 
 func TestRouteCreatesMissingUserTag(t *testing.T) {
 	a := routeApp(t)
-	a.Config.UserFolders = map[string]string{"2-daniela": "/downloads/daniela", "1-mallox": "/downloads/ravi"}
+	a.Config.UserFolders = map[string]string{"2-alice": "/downloads/alice", "1-mallox": "/downloads/ravi"}
 	fr, srv := newFakeArr(t, "movie", []map[string]any{
 		{"id": 5, "title": "Lee", "path": "/downloads/ravi/movies/Lee (2024)", "tags": []int{}},
 	})
@@ -190,8 +190,8 @@ func TestRouteCreatesMissingUserTag(t *testing.T) {
 func TestRouteTagDryRun(t *testing.T) {
 	a := routeApp(t)
 	a.Config.DryRun = true
-	a.Config.UserFolders = map[string]string{"2-daniela": "/downloads/daniela"}
-	fs, srv := newFakeArr(t, "series", []map[string]any{{"id": 21, "title": "Her Show", "path": "/downloads/daniela/tv/Her Show", "tags": []int{}}})
+	a.Config.UserFolders = map[string]string{"2-alice": "/downloads/alice"}
+	fs, srv := newFakeArr(t, "series", []map[string]any{{"id": 21, "title": "Her Show", "path": "/downloads/alice/tv/Her Show", "tags": []int{}}})
 	a.Sonarr = NewSonarr(srv.URL, "k")
 	a.Route()
 	if len(fs.puts) != 0 || len(fs.created) != 0 {
@@ -201,11 +201,11 @@ func TestRouteTagDryRun(t *testing.T) {
 
 func TestRouteWithSeerrStyleKeysStillMoves(t *testing.T) {
 	a := routeApp(t)
-	a.Config.UserFolders = map[string]string{"2-daniela": "/downloads/daniela", "1-mallox": "/downloads/ravi"}
-	fs, srv := newFakeArr(t, "series", []map[string]any{{"id": 10, "title": "X", "path": "/downloads/ravi/tv/X", "tags": []int{4}}}) // "5 - daniela"
+	a.Config.UserFolders = map[string]string{"2-alice": "/downloads/alice", "1-mallox": "/downloads/ravi"}
+	fs, srv := newFakeArr(t, "series", []map[string]any{{"id": 10, "title": "X", "path": "/downloads/ravi/tv/X", "tags": []int{4}}}) // "5 - alice"
 	a.Sonarr = NewSonarr(srv.URL, "k")
 	a.Route()
-	if fs.puts["/api/v3/series/10?moveFiles=true"]["path"] != "/downloads/daniela/tv/X" {
+	if fs.puts["/api/v3/series/10?moveFiles=true"]["path"] != "/downloads/alice/tv/X" {
 		t.Fatalf("puts %v", fs.puts)
 	}
 }

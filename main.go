@@ -24,6 +24,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -214,7 +215,7 @@ func loop(interval time.Duration, fn func()) {
 }
 
 func loadConfig() Config {
-	return Config{
+	c := Config{
 		Port:          getInt("PORT", 3333),
 		OutputDir:     getEnv("OUTPUT_DIR", ""), // marker files are optional (the old Tautulli-era "watched" folder)
 		StateFile:     getEnv("STATE_FILE", "/data/pending.json"),
@@ -238,7 +239,7 @@ func loadConfig() Config {
 		MovieDeleteUsers:     splitList(getEnv("MOVIE_DELETE_USERS", "")),
 		ArchiveShows:         splitList(getEnv("ARCHIVE_SHOWS", "")),
 		DeleteShows:          splitList(getEnv("DELETE_SHOWS", "")),
-		SearchDirs:           splitList(getEnv("SEARCH_DIRS", "/downloads/ravi,/downloads/daniela")),
+		SearchDirs:           splitList(getEnv("SEARCH_DIRS", "")),
 
 		RadarrURL:    strings.TrimRight(getEnv("RADARR_URL", ""), "/"),
 		RadarrAPIKey: getEnv("RADARR_API_KEY", ""),
@@ -289,6 +290,22 @@ func loadConfig() Config {
 		DeleteRoots:   splitList(getEnv("DELETE_ROOTS", "/downloads")),
 		ProtectedDirs: splitList(getEnv("PROTECTED_DIRS", "")),
 	}
+	if len(c.SearchDirs) == 0 {
+		c.SearchDirs = folderValues(c.UserFolders)
+	}
+	return c
+}
+
+// folderValues returns the distinct USER_FOLDERS base folders, sorted: the SEARCH_DIRS default.
+func folderValues(m map[string]string) []string {
+	var out []string
+	for _, v := range m {
+		if !slices.Contains(out, v) {
+			out = append(out, v)
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 func getEnv(key, defaultValue string) string {
