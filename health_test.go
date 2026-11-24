@@ -144,6 +144,23 @@ func TestCheckDownloadsRejectsStopped(t *testing.T) {
 	}
 }
 
+// keep exempts a torrent from the stall rules only: a fake is still rejected.
+func TestCheckDownloadsRejectsKeptFake(t *testing.T) {
+	_, qsrv := newFakeQbt(t, []Torrent{{Hash: "aaa", State: "stoppedUP", Progress: 1, Tags: "keep"}}, nil)
+	fs, ssrv := newFakeQueue(t, []map[string]any{
+		{"id": 1, "title": "Ted Lasso S04E10", "downloadId": "AAA", "protocol": "torrent", "trackedDownloadState": "importPending",
+			"statusMessages": []map[string]any{{"messages": []string{"Caution: Found executable file with extension: '.exe'"}}}},
+	})
+	a := newTestApp(t)
+	a.Config.SweepMaxRemove = 5
+	a.Qbt = NewQbittorrent(qsrv.URL, "", "")
+	a.Sonarr = NewSonarr(ssrv.URL, "k")
+	a.CheckDownloads()
+	if strings.Join(fs.rejected, ",") != "1" {
+		t.Errorf("rejected %v, want the keep-tagged fake", fs.rejected)
+	}
+}
+
 // Always Sunny S18E10, 2026-10-12: Sonarr moved the file into the series folder, the database write failed ("database
 // is locked"), and the queue said "No files found are eligible". Such downloads are rescanned, not blocklisted.
 func TestCheckDownloadsHalfFailedImport(t *testing.T) {
