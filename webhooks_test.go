@@ -88,6 +88,16 @@ func TestPlexMovieWritesMarkerOnly(t *testing.T) {
 	}
 }
 
+// A title is webhook input: a separator of either OS must not leave OutputDir (the release also builds Windows).
+func TestPlexMarkerNameStaysInOutputDir(t *testing.T) {
+	a := newTestApp(t)
+	rec := httptest.NewRecorder()
+	a.Routes().ServeHTTP(rec, plexRequest(t, `{"event":"media.scrobble","Metadata":{"type":"movie","title":"..\\../evil"}}`))
+	if _, err := os.Stat(filepath.Join(a.Config.OutputDir, "..-..-evil.json")); err != nil {
+		t.Fatalf("marker: %v", err)
+	}
+}
+
 func TestPlexBadPayload(t *testing.T) {
 	a := newTestApp(t)
 	rec := httptest.NewRecorder()

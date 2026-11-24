@@ -295,7 +295,8 @@ func (a *App) writeMarker(e WatchEvent) {
 		m.FullTitle = e.Title
 		name = e.Title + ".json"
 	}
-	name = strings.ReplaceAll(name, string(os.PathSeparator), "-")
+	// Titles are webhook input: replace the separators of every OS the release builds for, and Base keeps it one name.
+	name = filepath.Base(strings.NewReplacer("/", "-", `\`, "-").Replace(name))
 	data, _ := json.MarshalIndent(m, "", "  ")
 	if err := os.MkdirAll(a.Config.OutputDir, 0755); err != nil {
 		log.Printf("Error creating output directory: %v", err)

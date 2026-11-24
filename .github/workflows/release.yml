@@ -11,6 +11,9 @@ env:
   BIN_NAME: curator
   IMAGE: mallox/curator
 
+permissions:
+  contents: read
+
 jobs:
   test:
     uses: ./.github/workflows/test.yml
