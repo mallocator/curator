@@ -86,6 +86,7 @@ type Config struct {
 	SweepSkipCats  []string      // categories managed elsewhere (Sonarr/Radarr remove their own torrents)
 	SweepMaxRemove int           // refuse a sweep removing more than this many torrents and over half of them (missing mount)
 	StallTimeout   time.Duration // Sonarr/Radarr torrents without data for this long are rejected; 0 disables
+	StoppedTimeout time.Duration // the same for ones stopped before they finished; 0 disables
 	StatsInterval  time.Duration // refresh of the /metrics gauges (metrics.go); 0 disables
 
 	WatchedPoll     time.Duration // poll the servers' watched marks (watched_poll.go); 0 disables
@@ -271,6 +272,7 @@ func loadConfig() Config {
 		SweepSkipCats:  splitList(getEnv("SWEEP_SKIP_CATEGORIES", "sonarr,radarr")),
 		SweepMaxRemove: getInt("SWEEP_MAX_REMOVE", 5),
 		StallTimeout:   getDuration("STALL_TIMEOUT", 12*time.Hour),
+		StoppedTimeout: getDuration("STOPPED_TIMEOUT", 24*time.Hour),
 		StatsInterval:  getDuration("STATS_INTERVAL", 2*time.Minute),
 
 		WatchedPoll:     getDuration("WATCHED_POLL_INTERVAL", 10*time.Minute),

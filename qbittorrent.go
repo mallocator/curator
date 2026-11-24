@@ -32,6 +32,16 @@ type Torrent struct {
 	SavePath     string  `json:"save_path"`
 	AddedOn      int64   `json:"added_on"`      // unix time
 	LastActivity int64   `json:"last_activity"` // unix time of the last data transfer
+	Tags         string  `json:"tags"`          // comma-separated, e.g. "keep, other"
+}
+
+func (t Torrent) hasTag(tag string) bool {
+	for _, have := range strings.Split(t.Tags, ",") {
+		if strings.TrimSpace(have) == tag {
+			return true
+		}
+	}
+	return false
 }
 
 type TorrentFile struct {

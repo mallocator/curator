@@ -106,6 +106,44 @@ func TestCheckDownloadsRejectsFakesAndStalled(t *testing.T) {
 	}
 }
 
+// The Altruists S01E05, 2026-11-23: stopped in qBittorrent at 11.8 % with no seeds; nothing ever restarted it.
+func TestCheckDownloadsRejectsStopped(t *testing.T) {
+	now := time.Date(2026, 11, 23, 23, 0, 0, 0, time.UTC)
+	ago := func(d time.Duration) int64 { return now.Add(-d).Unix() }
+	torrents := []Torrent{
+		{Hash: "aaa", State: "stoppedDL", Progress: 0.118, AddedOn: ago(76 * time.Hour), LastActivity: ago(75 * time.Hour)},
+		{Hash: "bbb", State: "pausedDL", Progress: 0.5, AddedOn: ago(30 * time.Hour), LastActivity: ago(25 * time.Hour)},
+		{Hash: "ccc", State: "stoppedDL", Progress: 0.5, AddedOn: ago(30 * time.Hour), LastActivity: ago(20 * time.Hour)},
+		{Hash: "ddd", State: "stoppedDL", Progress: 0.1, Tags: "other, keep", AddedOn: ago(76 * time.Hour), LastActivity: ago(75 * time.Hour)},
+		{Hash: "eee", State: "stoppedUP", Progress: 1, AddedOn: ago(76 * time.Hour), LastActivity: ago(75 * time.Hour)},
+		{Hash: "fff", State: "stalledDL", Progress: 0.1, Tags: "keep", AddedOn: ago(76 * time.Hour), LastActivity: ago(75 * time.Hour)},
+	}
+	_, qsrv := newFakeQbt(t, torrents, nil)
+	var items []map[string]any
+	for i, h := range []string{"AAA", "BBB", "CCC", "DDD", "EEE", "FFF"} {
+		items = append(items, map[string]any{"id": i + 1, "title": h, "downloadId": h, "protocol": "torrent", "trackedDownloadState": "downloading"})
+	}
+	fs, ssrv := newFakeQueue(t, items)
+	a := newTestApp(t)
+	a.Now = func() time.Time { return now }
+	a.Config.StallTimeout, a.Config.StoppedTimeout = 12*time.Hour, 24*time.Hour
+	a.Config.SweepMaxRemove = 5
+	a.Qbt = NewQbittorrent(qsrv.URL, "", "")
+	a.Sonarr = NewSonarr(ssrv.URL, "k")
+	a.CheckDownloads()
+	sort.Strings(fs.rejected)
+	if strings.Join(fs.rejected, ",") != "1,2" {
+		t.Errorf("rejected %v, want the downloads stopped for over 24 h without a keep tag", fs.rejected)
+	}
+
+	fs.rejected = nil
+	a.Config.StoppedTimeout = 0
+	a.CheckDownloads()
+	if len(fs.rejected) != 0 {
+		t.Errorf("STOPPED_TIMEOUT=0 still rejected %v", fs.rejected)
+	}
+}
+
 // Always Sunny S18E10, 2026-10-12: Sonarr moved the file into the series folder, the database write failed ("database
 // is locked"), and the queue said "No files found are eligible". Such downloads are rescanned, not blocklisted.
 func TestCheckDownloadsHalfFailedImport(t *testing.T) {

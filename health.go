@@ -14,7 +14,10 @@ import (
 // Download health: Sonarr and Radarr leave broken downloads in their queue forever. Every sweep, curator
 // removes them from qBittorrent through the app's queue, blocklists the release and lets the app search again:
 //   - fakes and unusable downloads: an executable or an archive instead of a video, or nothing importable;
-//   - stalled downloads: no data (or no metadata) for STALL_TIMEOUT.
+//   - stalled downloads: no data (or no metadata) for STALL_TIMEOUT;
+//   - stopped downloads: stopped before they finished and no data for STOPPED_TIMEOUT. Nothing restarts them (The
+//     Altruists S01E05, 2026-11-23: stopped at 11.8 % with no seeds for 76 hours until the owner noticed).
+// A torrent tagged `keep` in qBittorrent is never rejected as stalled or stopped.
 // A download whose video is already gone from the downloads share was moved by an import that failed halfway (the
 // file reached the series folder, the database write didn't, e.g. "database is locked" on a busy disk). Sonarr then
 // reports "no files found are eligible" too, but the release is good: rescan the series/movie so the app finds the
@@ -103,10 +106,29 @@ func alreadyMoved(path string) bool {
 // downloadingStates are the states of a torrent that should be receiving data (queued ones wait for a slot).
 var downloadingStates = []string{"downloading", "forcedDL", "stalledDL", "metaDL", "forcedMetaDL"}
 
+// stoppedStates are the states of a download stopped before it finished: stoppedDL in qBittorrent 5, pausedDL before.
+var stoppedStates = []string{"stoppedDL", "pausedDL"}
+
+// keepTag exempts a torrent from the stall rules, e.g. one stopped on purpose for longer than STOPPED_TIMEOUT.
+const keepTag = "keep"
+
+// stallTimeout is how long a torrent may go without data before it counts as stalled; 0 means never.
+func stallTimeout(t Torrent, c Config) time.Duration {
+	switch {
+	case t.hasTag(keepTag):
+		return 0
+	case slices.Contains(downloadingStates, t.State):
+		return c.StallTimeout
+	case slices.Contains(stoppedStates, t.State):
+		return c.StoppedTimeout
+	}
+	return 0
+}
+
 // stalled reports an incomplete torrent that hasn't received anything for longer than timeout. Progress, not
 // amount_left, decides "incomplete": without metadata the size (and so amount_left) is still 0.
 func stalled(t Torrent, now time.Time, timeout time.Duration) bool {
-	if t.Progress >= 1 || !slices.Contains(downloadingStates, t.State) {
+	if timeout <= 0 || t.Progress >= 1 {
 		return false
 	}
 	last := max(t.AddedOn, t.LastActivity)
@@ -180,8 +202,8 @@ func (a *App) CheckDownloads() {
 			}
 			t, known := byHash[strings.ToLower(q.DownloadID)]
 			reason := q.unusable()
-			if known && reason == "" && a.Config.StallTimeout > 0 && stalled(t, a.now(), a.Config.StallTimeout) {
-				reason = fmt.Sprintf("stalled (%s) for over %s", t.State, a.Config.StallTimeout)
+			if timeout := stallTimeout(t, a.Config); known && reason == "" && stalled(t, a.now(), timeout) {
+				reason = fmt.Sprintf("stalled (%s) for over %s", t.State, timeout)
 			}
 			if reason == "" {
 				continue

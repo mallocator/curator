@@ -83,7 +83,9 @@ Simkl/Seerr list sync. A single Go binary with no dependencies. Named plex-clean
    same name but different size stops it (nothing is overwritten). Checked every `CHECK_INTERVAL`.
 7. **Download health** (with the sweep): Sonarr/Radarr downloads that will never import are removed from qBittorrent
    through the app's queue, blocklisted, and searched again: fakes (an executable or archive instead of a video,
-   nothing importable) and torrents without any data for `STALL_TIMEOUT`. At most `SWEEP_MAX_REMOVE` per run.
+   nothing importable), torrents without any data for `STALL_TIMEOUT`, and torrents stopped before they finished
+   (`stoppedDL`, `pausedDL`) without data for `STOPPED_TIMEOUT`. A torrent tagged `keep` in qBittorrent is never
+   rejected as stalled or stopped. At most `SWEEP_MAX_REMOVE` per run.
    A download that reports nothing importable but whose video is already gone from the downloads folder was moved by
    an import that failed halfway (e.g. Sonarr's `database is locked` on a busy disk): it is not blocklisted; the series
    or movie is rescanned so the app picks up the file, and the queue entry is dropped without searching again.
@@ -158,6 +160,7 @@ refused and logged.
 | `SWEEP_SKIP_CATEGORIES` | `sonarr,radarr` | Categories whose torrents their apps remove |
 | `SWEEP_MAX_REMOVE` | `5` | Safety limit, see above; also the download health limit per run |
 | `STALL_TIMEOUT` | `12h` | Sonarr/Radarr torrents without data this long are rejected; `0` disables |
+| `STOPPED_TIMEOUT` | `24h` | The same for Sonarr/Radarr torrents stopped before they finished; `0` disables |
 | `UPGRADE_INTERVAL` | `10m` | Upgrade search and import checks; `0` disables |
 | `UPGRADE_WINDOW` | `336h` | New episodes/movies are looked after for 14 days |
 | `UPGRADE_FALLBACK` | `48h` | Without anything acceptable this long, the size floor (then the profile's lowest resolution, by one step) is relaxed |
