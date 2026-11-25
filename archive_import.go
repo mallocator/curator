@@ -164,25 +164,53 @@ func isStagingName(name string) bool {
 // Remove doesn't run then). It runs before the importer accepts requests, so no copy is in flight.
 func (a *archiveImporter) RemoveStaleStaging() {
 	for path, root := range a.destinations {
-		_ = fs.WalkDir(root.FS(), ".", func(name string, d fs.DirEntry, err error) error {
-			if err != nil {
-				log.Printf("Staging cleanup: %s: %v", filepath.Join(path, name), err)
-				if d != nil && d.IsDir() {
-					return fs.SkipDir
-				}
-				return nil
-			}
-			if !d.Type().IsRegular() || !isStagingName(d.Name()) {
-				return nil
-			}
-			if err := root.Remove(name); err != nil {
-				log.Printf("Staging cleanup: %s: %v", filepath.Join(path, name), err)
-			} else {
-				log.Printf("Staging cleanup: removed %s", filepath.Join(path, name))
+		removeStaleStaging(path, root)
+	}
+}
+
+// removeStandaloneStaging does the importer's startup cleanup for a main service that writes the archive
+// itself (no ARCHIVE_IMPORT_SOCKET). It runs before the archive loops start, so no copy is in flight.
+// With the socket set, the archive belongs to the importer and nothing is removed here.
+func removeStandaloneStaging(cfg Config) {
+	if os.Getenv("ARCHIVE_IMPORT_SOCKET") != "" {
+		return
+	}
+	for _, path := range []string{cfg.ArchiveDir, cfg.AnimeArchiveDir, cfg.MovieArchiveDir} {
+		if path == "" {
+			continue
+		}
+		root, err := os.OpenRoot(path)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		} else if err != nil {
+			log.Printf("Staging cleanup: %s: %v", path, err)
+			continue
+		}
+		removeStaleStaging(path, root)
+		root.Close()
+	}
+}
+
+// removeStaleStaging removes only regular files with a name publishArchive generates, below root.
+func removeStaleStaging(path string, root *os.Root) {
+	_ = fs.WalkDir(root.FS(), ".", func(name string, d fs.DirEntry, err error) error {
+		if err != nil {
+			log.Printf("Staging cleanup: %s: %v", filepath.Join(path, name), err)
+			if d != nil && d.IsDir() {
+				return fs.SkipDir
 			}
 			return nil
-		})
-	}
+		}
+		if !d.Type().IsRegular() || !isStagingName(d.Name()) {
+			return nil
+		}
+		if err := root.Remove(name); err != nil {
+			log.Printf("Staging cleanup: %s: %v", filepath.Join(path, name), err)
+		} else {
+			log.Printf("Staging cleanup: removed %s", filepath.Join(path, name))
+		}
+		return nil
+	})
 }
 
 func syncArchiveDirectory(root *os.Root) error {

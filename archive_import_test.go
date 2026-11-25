@@ -159,3 +159,43 @@ func TestRemoveStaleStaging(t *testing.T) {
 		}
 	}
 }
+
+func TestRemoveStandaloneStaging(t *testing.T) {
+	dir := t.TempDir()
+	shows, movies, outside := filepath.Join(dir, "archive"), filepath.Join(dir, "movies"), filepath.Join(dir, "outside")
+	for _, d := range []string{filepath.Join(shows, "show"), movies, outside} {
+		os.MkdirAll(d, 0700)
+	}
+	stale := filepath.Join(shows, "show", ".curator-import-H4HLMONQ62LHUL6OXJDDRQX3TD")
+	staleMovie := filepath.Join(movies, ".curator-import-EEEEEEEEEEEEEEEEEEEEEEEEEE")
+	published := filepath.Join(shows, "show", "S01E01.mkv")
+	lookalike := filepath.Join(shows, ".curator-import-notmine")
+	symlink := filepath.Join(movies, ".curator-import-BBBBBBBBBBBBBBBBBBBBBBBBBB")
+	victim := filepath.Join(outside, ".curator-import-DDDDDDDDDDDDDDDDDDDDDDDDDD")
+	for _, f := range []string{stale, staleMovie, published, lookalike, victim} {
+		os.WriteFile(f, []byte("abc"), 0600)
+	}
+	os.Symlink(victim, symlink)
+	cfg := Config{ArchiveDir: shows, AnimeArchiveDir: filepath.Join(dir, "missing"), MovieArchiveDir: movies}
+
+	t.Setenv("ARCHIVE_IMPORT_SOCKET", filepath.Join(dir, "import.sock"))
+	removeStandaloneStaging(cfg)
+	for _, f := range []string{stale, staleMovie} {
+		if _, err := os.Lstat(f); err != nil {
+			t.Fatalf("removed %s although the importer owns the archive: %v", f, err)
+		}
+	}
+
+	t.Setenv("ARCHIVE_IMPORT_SOCKET", "")
+	removeStandaloneStaging(cfg)
+	for _, f := range []string{stale, staleMovie} {
+		if _, err := os.Lstat(f); !os.IsNotExist(err) {
+			t.Errorf("%s not removed", f)
+		}
+	}
+	for _, f := range []string{published, lookalike, symlink, victim} {
+		if _, err := os.Lstat(f); err != nil {
+			t.Errorf("%s removed: %v", f, err)
+		}
+	}
+}

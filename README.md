@@ -202,7 +202,9 @@ The importer accepts only regular files under downloads and destinations under i
 checks the size, flushes each new file, then publishes with an atomic no-replace hard link. Existing files must
 have identical content before a retry counts as successful. Symlinks cannot escape the opened roots. Only its
 own randomly named staging files (`.curator-import-<26 base32 characters>`) are unlinked, after each copy and at
-startup for copies cut off by a restart; it has no archive delete, replace or move API. A compromised main
+startup for copies cut off by a restart; it has no archive delete, replace or move API. Without
+`ARCHIVE_IMPORT_SOCKET`, the main service stages its own copies the same way and removes the same stale staging
+files from its archive directories at startup. A compromised main
 service can still request new copies and consume archive disk space. Isolating the importer reduces that service's
 access; it does not contain a compromise of the importer itself or of the Docker host. Requests time out after
 45 minutes; a failed or timed-out copy does not authorize the main service to remove the download.

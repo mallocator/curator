@@ -23,7 +23,8 @@ every setting). Runs as the image `mallox/curator` on the owner's NAS; the stack
 - The binary stays at `/app/curator`: the NAS compose healthcheck runs `/app/curator healthcheck`, and a moved
   binary makes the watcher restart the container in a loop.
 - Nothing is ever deleted outside `DELETE_ROOTS` (guard.go): the archive folders are the owner's and only he
-  deletes there.
+  deletes there. One exception: curator's own unpublished staging files (`.curator-import-<26 base32 chars>`,
+  `isStagingName` in archive_import.go), removed after each copy and, for killed copies, at startup.
 - Every client has its own `http.Client` timeout; requests carry a context (noctx). There is no shutdown context
   yet, so they use `context.Background()`.
 - Never commit a built binary: `curator` and the old `plex-clean` (the name until v2.14) are ignored; an 11 MB

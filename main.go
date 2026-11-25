@@ -158,6 +158,7 @@ func main() {
 		app.Plex = NewPlex(config.PlexURL, config.PlexCollection)
 	}
 
+	removeStandaloneStaging(config) // before the archive loops: copies killed by the last stop
 	go loop(config.CheckInterval, func() { app.Route(); app.ProcessDue(); app.ArchiveMovies() })
 	if app.Qbt != nil && config.SweepInterval > 0 {
 		go loop(config.SweepInterval, func() { app.Sweep(); app.CheckDownloads() })
