@@ -81,6 +81,7 @@ type Config struct {
 	QbtURL         string
 	QbtUser        string
 	QbtPass        string
+	QbtCAFile      string        // PEM certificate(s) trusted for QBT_URL instead of the system roots
 	SweepInterval  time.Duration // 0 disables the torrent sweep
 	SweepRoot      string        // only torrents saved below this path are swept
 	SweepSkipCats  []string      // categories managed elsewhere (Sonarr/Radarr remove their own torrents)
@@ -126,7 +127,9 @@ func main() {
 		app.Sonarr = NewSonarr(config.SonarrURL, config.SonarrAPIKey)
 	}
 	if config.QbtURL != "" {
-		app.Qbt = NewQbittorrent(config.QbtURL, config.QbtUser, config.QbtPass)
+		if app.Qbt, err = NewQbittorrent(config.QbtURL, config.QbtUser, config.QbtPass, config.QbtCAFile); err != nil {
+			log.Fatal(err)
+		}
 	}
 	if config.RadarrURL != "" {
 		app.Radarr = NewArr(config.RadarrURL, config.RadarrAPIKey)
@@ -267,6 +270,7 @@ func loadConfig() Config {
 		QbtURL:         strings.TrimRight(getEnv("QBT_URL", ""), "/"),
 		QbtUser:        getEnv("QBT_USER", ""),
 		QbtPass:        getEnv("QBT_PASS", ""),
+		QbtCAFile:      getEnv("QBT_CA_FILE", ""),
 		SweepInterval:  getDuration("SWEEP_INTERVAL", 15*time.Minute),
 		SweepRoot:      getEnv("SWEEP_ROOT", "/downloads"),
 		SweepSkipCats:  splitList(getEnv("SWEEP_SKIP_CATEGORIES", "sonarr,radarr")),

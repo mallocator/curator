@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 )
@@ -49,14 +51,26 @@ type TorrentFile struct {
 	Priority int    `json:"priority"`
 }
 
-func NewQbittorrent(baseURL, user, pass string) *Qbittorrent {
+// NewQbittorrent checks the WebUI's certificate against the system roots, or only against the PEM certificates in
+// caFile when it is set (a self-signed WebUI certificate; its names must include the host in baseURL).
+func NewQbittorrent(baseURL, user, pass, caFile string) (*Qbittorrent, error) {
 	jar, _ := cookiejar.New(nil)
-	return &Qbittorrent{BaseURL: baseURL, Username: user, Password: pass, Client: &http.Client{
-		Jar:     jar,
-		Timeout: 30 * time.Second,
-		// qBittorrent's WebUI typically uses a self-signed certificate on the LAN.
-		Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}},
-	}}
+	client := &http.Client{Jar: jar, Timeout: 30 * time.Second}
+	if caFile != "" {
+		pem, err := os.ReadFile(caFile)
+		if err != nil {
+			return nil, fmt.Errorf("qbittorrent CA file: %w", err)
+		}
+		roots := x509.NewCertPool()
+		if !roots.AppendCertsFromPEM(pem) {
+			return nil, fmt.Errorf("qbittorrent CA file %s: no PEM certificate", caFile)
+		}
+		client.Transport = &http.Transport{
+			Proxy:           http.ProxyFromEnvironment,
+			TLSClientConfig: &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12},
+		}
+	}
+	return &Qbittorrent{BaseURL: baseURL, Username: user, Password: pass, Client: client}, nil
 }
 
 // Login authenticates if credentials are configured (subnets on qBittorrent's auth whitelist need none).

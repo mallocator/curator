@@ -155,6 +155,7 @@ refused and logged.
 | `ARCHIVE_SHOWS`, `DELETE_SHOWS` | | Comma-separated show names for shows not in Sonarr |
 | `SEARCH_DIRS` | the `USER_FOLDERS` folders | Where name-based rules look for files |
 | `QBT_URL`, `QBT_USER`, `QBT_PASS` | | Enables the torrent sweep; credentials optional on qBittorrent's auth whitelist |
+| `QBT_CA_FILE` | | PEM certificate trusted for an `https` `QBT_URL` instead of the system roots, e.g. the WebUI's self-signed one (its names must include the URL's host). Not needed behind a certificate from a public CA |
 | `SWEEP_INTERVAL` | `15m` | `0` disables the sweep |
 | `SWEEP_ROOT` | `/downloads` | Only torrents saved below this path; must match qBittorrent's container path |
 | `SWEEP_SKIP_CATEGORIES` | `sonarr,radarr` | Categories whose torrents their apps remove |

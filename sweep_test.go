@@ -71,7 +71,7 @@ func sweepApp(t *testing.T, torrents []Torrent, files map[string][]TorrentFile, 
 	a.Config.SweepRoot = root
 	a.Config.SweepSkipCats = []string{"sonarr", "radarr"}
 	a.Config.SweepMaxRemove = 5
-	a.Qbt = NewQbittorrent(srv.URL, "admin", "secret")
+	a.Qbt = newTestQbt(t, srv.URL, "admin", "secret")
 	return a, fq
 }
 
@@ -140,7 +140,7 @@ func TestSweepSkipsEmptyRoot(t *testing.T) {
 	fq, srv := newFakeQbt(t, []Torrent{{Hash: "x", SavePath: "/downloads/ravi"}}, nil)
 	a := newTestApp(t)
 	a.Config.SweepRoot = t.TempDir() // empty: share not mounted
-	a.Qbt = NewQbittorrent(srv.URL, "", "")
+	a.Qbt = newTestQbt(t, srv.URL, "", "")
 	a.Sweep()
 	if fq.logins != 0 || len(fq.removed) != 0 {
 		t.Fatalf("logins %d removed %v", fq.logins, fq.removed)
@@ -158,7 +158,7 @@ func TestSweepDryRun(t *testing.T) {
 
 func TestLoginWithoutCredentialsIsSkipped(t *testing.T) {
 	fq, srv := newFakeQbt(t, nil, nil)
-	if err := NewQbittorrent(srv.URL, "", "").Login(); err != nil || fq.logins != 0 {
+	if err := newTestQbt(t, srv.URL, "", "").Login(); err != nil || fq.logins != 0 {
 		t.Fatalf("err %v logins %d", err, fq.logins)
 	}
 }

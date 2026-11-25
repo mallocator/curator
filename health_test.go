@@ -86,7 +86,7 @@ func TestCheckDownloadsRejectsFakesAndStalled(t *testing.T) {
 	a.Now = func() time.Time { return now }
 	a.Config.StallTimeout = 12 * time.Hour
 	a.Config.SweepMaxRemove = 5
-	a.Qbt = NewQbittorrent(qsrv.URL, "", "")
+	a.Qbt = newTestQbt(t, qsrv.URL, "", "")
 	a.Sonarr = NewSonarr(ssrv.URL, "k")
 	a.Radarr = NewArr(rsrv.URL, "k")
 	a.CheckDownloads()
@@ -128,7 +128,7 @@ func TestCheckDownloadsRejectsStopped(t *testing.T) {
 	a.Now = func() time.Time { return now }
 	a.Config.StallTimeout, a.Config.StoppedTimeout = 12*time.Hour, 24*time.Hour
 	a.Config.SweepMaxRemove = 5
-	a.Qbt = NewQbittorrent(qsrv.URL, "", "")
+	a.Qbt = newTestQbt(t, qsrv.URL, "", "")
 	a.Sonarr = NewSonarr(ssrv.URL, "k")
 	a.CheckDownloads()
 	sort.Strings(fs.rejected)
@@ -153,7 +153,7 @@ func TestCheckDownloadsRejectsKeptFake(t *testing.T) {
 	})
 	a := newTestApp(t)
 	a.Config.SweepMaxRemove = 5
-	a.Qbt = NewQbittorrent(qsrv.URL, "", "")
+	a.Qbt = newTestQbt(t, qsrv.URL, "", "")
 	a.Sonarr = NewSonarr(ssrv.URL, "k")
 	a.CheckDownloads()
 	if strings.Join(fs.rejected, ",") != "1" {
@@ -201,7 +201,7 @@ func TestCheckDownloadsHalfFailedImport(t *testing.T) {
 	})
 	a := newTestApp(t)
 	a.Config.SweepMaxRemove = 10
-	a.Qbt = NewQbittorrent(qsrv.URL, "", "")
+	a.Qbt = newTestQbt(t, qsrv.URL, "", "")
 	a.Sonarr = NewSonarr(ssrv.URL, "k")
 	a.CheckDownloads()
 	sort.Strings(fs.removed)
