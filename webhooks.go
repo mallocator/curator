@@ -297,12 +297,23 @@ func (a *App) writeMarker(e WatchEvent) {
 	}
 	// Titles are webhook input: replace the separators of every OS the release builds for, and Base keeps it one name.
 	name = filepath.Base(strings.NewReplacer("/", "-", `\`, "-").Replace(name))
+	if !filepath.IsLocal(name) {
+		log.Printf("Skipped marker with an unsafe name: %q", name)
+		return
+	}
 	data, _ := json.MarshalIndent(m, "", "  ")
 	if err := os.MkdirAll(a.Config.OutputDir, 0755); err != nil {
 		log.Printf("Error creating output directory: %v", err)
 		return
 	}
-	if err := os.WriteFile(filepath.Join(a.Config.OutputDir, name), data, 0644); err != nil {
+	// os.Root refuses a name that leaves OutputDir, also through a symlink in it.
+	root, err := os.OpenRoot(a.Config.OutputDir)
+	if err != nil {
+		log.Printf("Error opening output directory: %v", err)
+		return
+	}
+	defer func() { _ = root.Close() }()
+	if err := root.WriteFile(name, data, 0644); err != nil {
 		log.Printf("Error writing marker %s: %v", name, err)
 		return
 	}

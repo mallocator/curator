@@ -205,3 +205,20 @@ func TestLooseEpisodeReportedAsMovieIsQueued(t *testing.T) {
 		t.Errorf("queued %v", got)
 	}
 }
+
+// A symlink in OutputDir that points outside must not take the marker with it.
+func TestPlexMarkerDoesNotFollowSymlinkOut(t *testing.T) {
+	a := newTestApp(t)
+	outside := t.TempDir()
+	if err := os.MkdirAll(a.Config.OutputDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(outside, "Escape.json"), filepath.Join(a.Config.OutputDir, "Escape.json")); err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	a.Routes().ServeHTTP(rec, plexRequest(t, `{"event":"media.scrobble","Metadata":{"type":"movie","title":"Escape"}}`))
+	if _, err := os.Stat(filepath.Join(outside, "Escape.json")); !os.IsNotExist(err) {
+		t.Fatalf("marker written outside OutputDir: %v", err)
+	}
+}
