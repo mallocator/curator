@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -158,40 +157,37 @@ func (a *App) apply(it PendingItem) (bool, error) {
 	return true, nil
 }
 
-// copyFile copies src to dst through a temp file and checks the size. An existing dst of the
-// expected size counts as already archived.
+// copyFile delegates archive writes when the main process has read-only archive mounts.
+// Standalone deployments also refuse to replace an existing archive file.
 func copyFile(src, dst string, wantSize int64) error {
-	if st, err := os.Stat(dst); err == nil && st.Size() == wantSize {
-		return nil
-	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(dst), 0775); err != nil {
-		return err
+	if socket := os.Getenv("ARCHIVE_IMPORT_SOCKET"); socket != "" {
+		return requestArchiveCopy(socket, src, dst, wantSize)
 	}
 	in, err := os.Open(src)
 	if err != nil {
 		return err
 	}
 	defer in.Close()
-	tmp := dst + ".partial"
-	out, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0664)
+	st, err := in.Stat()
 	if err != nil {
 		return err
 	}
-	n, err := io.Copy(out, in)
-	if err == nil {
-		err = out.Sync()
+	if !st.Mode().IsRegular() {
+		return errors.New("source is not a regular file")
 	}
-	if cerr := out.Close(); err == nil {
-		err = cerr
+	if wantSize <= 0 {
+		wantSize = st.Size()
 	}
-	if err == nil && wantSize > 0 && n != wantSize {
-		err = fmt.Errorf("copied %d bytes, expected %d", n, wantSize)
+	if st.Size() != wantSize {
+		return fmt.Errorf("source size %d, expected %d", st.Size(), wantSize)
 	}
-	if err != nil {
-		os.Remove(tmp)
+	if err := os.MkdirAll(filepath.Dir(dst), 0775); err != nil {
 		return err
 	}
-	return os.Rename(tmp, dst)
+	root, err := os.OpenRoot(filepath.Dir(dst))
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	return publishArchive(in, root, filepath.Base(dst), wantSize)
 }

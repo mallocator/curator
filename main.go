@@ -112,9 +112,20 @@ type Config struct {
 var version = "dev"
 
 func main() {
-	// "curator healthcheck" is the Docker healthcheck: the image has no shell or curl.
-	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
-		os.Exit(healthcheck(getInt("PORT", 3333)))
+	// Subcommands: "healthcheck" is the Docker healthcheck (the image has no shell or curl);
+	// "archive-importer" is the separate archive writer, "archive-healthcheck" its healthcheck.
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "healthcheck":
+			os.Exit(healthcheck(getInt("PORT", 3333)))
+		case "archive-importer":
+			if err := runArchiveImporter(); err != nil {
+				log.Fatal(err)
+			}
+			return
+		case "archive-healthcheck":
+			os.Exit(archiveImportHealthcheck())
+		}
 	}
 	config := loadConfig()
 	queue, err := LoadQueue(config.StateFile)

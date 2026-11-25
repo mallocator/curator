@@ -179,12 +179,33 @@ refused and logged.
 | `WATCHED_MAX_AGE` | `4h` | A new mark older than this is treated as synced and ignored (must cover a long playback: Jellyfin dates a viewing from its start) |
 | `WATCHED_BURST_MAX` | `25` | More new marks than this in one poll are held, not queued |
 | `WATCHED_SEEN_FILE` | `/data/watched-seen.json` | Marks already handled |
+| `ARCHIVE_IMPORT_SOCKET` | | Unix socket of a separate archive importer; when set, archive copies go through it (see below) instead of being written by this process |
+| `ARCHIVE_SOURCE_DIR` | `/downloads` | Importer only: copies are accepted only from below this path |
 | `DELETE_ROOTS` | `/downloads` | Deletions only below these |
 | `PROTECTED_DIRS` | | Never deleted in, besides the archive dirs |
 | `DEBUG` | `false` | Verbose logging |
 
 Paths must be the same inside curator, Sonarr and qBittorrent (mount the downloads share at `/downloads`
 everywhere), because Sonarr and qBittorrent report their own paths.
+
+## Separate archive importer
+
+Set `ARCHIVE_IMPORT_SOCKET=/run/archive-import/import.sock` on the main service and run a second instance of the
+same binary with `archive-importer`. Mount the archive directories read-only in the main service and read-write
+only in the importer. The importer needs a read-only downloads mount (`ARCHIVE_SOURCE_DIR`, default `/downloads`),
+its archive mounts (`ARCHIVE_DIR`, `ANIME_ARCHIVE_DIR`, `MOVIE_ARCHIVE_DIR`), and a private shared socket directory.
+Run it without a network namespace connection, app credentials or application state. Both processes can run as
+non-root users; the socket is mode 0660 and its parent must be writable only by the importer. The main service
+can mount that directory read-only and connect using its shared group. Healthcheck: `curator archive-healthcheck`.
+
+The importer accepts only regular files under downloads and destinations under its opened archive roots. It
+checks the size, flushes each new file, then publishes with an atomic no-replace hard link. Existing files must
+have identical content before a retry counts as successful. Symlinks cannot escape the opened roots. Only its
+own randomly named staging files (`.curator-import-<26 base32 characters>`) are unlinked, after each copy and at
+startup for copies cut off by a restart; it has no archive delete, replace or move API. A compromised main
+service can still request new copies and consume archive disk space. Isolating the importer reduces that service's
+access; it does not contain a compromise of the importer itself or of the Docker host. Requests time out after
+45 minutes; a failed or timed-out copy does not authorize the main service to remove the download.
 
 ## Endpoints
 
